@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      # Let all Node versions run — don't cancel everything if one fails
       fail-fast: false
       matrix:
         node-version: [18.x, 20.x, 22.x, 24.x]
@@ -30,15 +29,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          # Only cache if a lockfile exists — avoids cache-miss errors on fresh clones
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
-      # Use `npm install` (not `npm ci`) so the workflow works even when
-      # package-lock.json has not been committed yet (e.g. first push after
-      # scaffold). npm workspaces hoists all package deps into root
-      # node_modules — a single install covers every workspace package.
+      # .npmrc at the repo root sets fetch-retries=5 and pins the registry.
+      # --prefer-online forces npm to check the registry even when a local
+      # cache entry exists, avoiding stale / partially-replicated versions.
+      # --no-fund --no-audit cut noise; they are also set in .npmrc as a
+      # fallback for local dev.
       - name: Install dependencies
-        run: npm install
+        run: npm install --prefer-online --no-fund --no-audit
+        env:
+          npm_config_fetch_retries: 5
+          npm_config_fetch_retry_mintimeout: 5000
+          npm_config_fetch_retry_maxtimeout: 120000
 
       - name: Typecheck — fnetro
         run: npm run typecheck --workspace=packages/fnetro
@@ -53,8 +56,6 @@ jobs:
         run: npm run build --workspace=packages/create-fnetro
 
   # ── Scaffold smoke test ──────────────────────────────────────────────────────
-  # Runs only on Node 22 (LTS) after the build matrix passes.
-  # Tests both templates and validates the generated file contents.
   scaffold-test:
     name: Scaffold (${{ matrix.template }})
     runs-on: ubuntu-latest
@@ -76,7 +77,11 @@ jobs:
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
       - name: Install & build
-        run: npm install && npm run build
+        run: npm install --prefer-online --no-fund --no-audit && npm run build
+        env:
+          npm_config_fetch_retries: 5
+          npm_config_fetch_retry_mintimeout: 5000
+          npm_config_fetch_retry_maxtimeout: 120000
 
       - name: Scaffold — ${{ matrix.template }} template (node runtime)
         run: |
@@ -176,3 +181,6 @@ jobs:
           grep -q "solid-js" test-app/app/layouts.tsx \
             && echo "  ok layouts.tsx imports from solid-js" \
             || (echo "  FAIL layouts.tsx missing solid-js import" && exit 1)
+          grep -q "style.css" test-app/client.ts \
+            && echo "  ok client.ts imports CSS" \
+            || (echo "  FAIL client.ts missing CSS import" && exit 1)
