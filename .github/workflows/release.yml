@@ -33,15 +33,8 @@ jobs:
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
           registry-url: https://registry.npmjs.org
 
-      # .npmrc (committed to repo) sets fetch-retries=5 and pins the registry.
-      # --prefer-online forces a fresh registry lookup, avoiding stale
-      # partially-replicated package versions (e.g. tinyglobby 404s).
       - name: Install dependencies
-        run: npm install --prefer-online --no-fund --no-audit
-        env:
-          npm_config_fetch_retries: 5
-          npm_config_fetch_retry_mintimeout: 5000
-          npm_config_fetch_retry_maxtimeout: 120000
+        run: npm install
 
       - name: Build all packages
         run: npm run build
