@@ -1,257 +1,169 @@
-# ⬡ FNetro
+# FNetro
 
-> Full-stack [Hono](https://hono.dev) framework — SSR, SPA, Vue-like reactivity, route groups, middleware and raw API routes in **3 files**.
+> Full-stack [Hono](https://hono.dev) framework powered by **SolidJS v1.9+** —
+> SSR · SPA · SEO · server & client middleware · multi-runtime · TypeScript-first.
 
-[![npm](https://img.shields.io/npm/v/fnetro?color=6b8cff&label=fnetro)](https://www.npmjs.com/package/fnetro)
-[![npm](https://img.shields.io/npm/v/create-fnetro?color=3ecf8e&label=create-fnetro)](https://www.npmjs.com/package/create-fnetro)
-[![CI](https://github.com/netrosolutions/fnetro/actions/workflows/ci.yml/badge.svg)](https://github.com/netrosolutions/fnetro/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![CI](https://github.com/netrosolutions/fnetro/actions/workflows/ci.yml/badge.svg)](https://github.com/netrosolutions/fnetro/actions/workflows/ci.yml)
+[![npm @netrojs/fnetro](https://img.shields.io/npm/v/@netrojs/fnetro?label=%40netrojs%2Ffnetro)](https://www.npmjs.com/package/@netrojs/fnetro)
+[![npm create-fnetro](https://img.shields.io/npm/v/@netrojs/create-fnetro?label=%40netrojs%2Fcreate-fnetro)](https://www.npmjs.com/package/@netrojs/create-fnetro)
+[![license](https://img.shields.io/npm/l/@netrojs/fnetro)](./LICENSE)
 
 ---
 
 ## Table of contents
 
-- [Quick start](#quick-start)
-- [How it works](#how-it-works)
-- [Project structure](#project-structure)
-- [Core concepts](#core-concepts)
-  - [definePage](#definepage)
-  - [defineGroup](#definegroup)
-  - [defineLayout](#definelayout)
-  - [defineApiRoute](#defineapiroute)
-  - [defineMiddleware](#definemiddleware)
-- [Reactivity](#reactivity)
-  - [ref](#ref)
-  - [reactive](#reactive)
-  - [computed](#computed)
-  - [watch](#watch)
-  - [watchEffect](#watcheffect)
-  - [effectScope](#effectscope)
-  - [Helpers](#helpers)
-  - [Component hooks](#component-hooks)
-- [Routing](#routing)
-  - [Dynamic segments](#dynamic-segments)
-  - [Route groups](#route-groups)
-  - [Layout overrides](#layout-overrides)
-- [Server](#server)
-  - [createFNetro](#createfnetro)
-  - [serve](#serve)
-  - [Runtime detection](#runtime-detection)
-- [Client](#client)
-  - [boot](#boot)
-  - [navigate](#navigate)
-  - [prefetch](#prefetch)
-  - [Lifecycle hooks](#lifecycle-hooks)
-- [Vite plugin](#vite-plugin)
-- [Dev server](#dev-server)
-- [Global store pattern](#global-store-pattern)
-- [TypeScript](#typescript)
-- [Runtime support](#runtime-support)
-- [API reference](#api-reference)
+1. [Packages](#packages)
+2. [Quick start](#quick-start)
+3. [How it works](#how-it-works)
+4. [Routing](#routing)
+   - [definePage](#definepage)
+   - [defineGroup](#definegroup)
+   - [defineLayout](#definelayout)
+   - [defineApiRoute](#defineapiroute)
+5. [Loaders](#loaders)
+6. [SEO](#seo)
+7. [Middleware](#middleware)
+   - [Server middleware](#server-middleware)
+   - [Client middleware](#client-middleware)
+8. [SolidJS reactivity](#solidjs-reactivity)
+9. [Navigation](#navigation)
+10. [Asset handling](#asset-handling)
+11. [Multi-runtime serve()](#multi-runtime-serve)
+12. [Vite plugin](#vite-plugin)
+13. [Project structure](#project-structure)
+14. [TypeScript](#typescript)
+15. [create-fnetro CLI](#create-fnetro-cli)
+16. [API reference](#api-reference)
+17. [Monorepo development](#monorepo-development)
+18. [Publishing & releases](#publishing--releases)
+
+---
+
+## Packages
+
+| Package | Description |
+|---|---|
+| [`@netrojs/fnetro`](./packages/fnetro) | Core framework — SSR renderer, SPA routing, SEO, middleware, Vite plugin |
+| [`@netrojs/create-fnetro`](./packages/create-fnetro) | Interactive project scaffolding CLI |
 
 ---
 
 ## Quick start
 
 ```bash
-# npm
-npm create fnetro@latest
-
-# bun
-bun x create-fnetro
-
-# pnpm
-pnpm create fnetro@latest
-```
-
-The CLI will prompt for your project name, runtime (Node / Bun / Deno / Cloudflare / generic), template, and package manager, then scaffold a ready-to-run app.
-
-```bash
+npm create @netrojs/fnetro@latest my-app
 cd my-app
-bun install
-bun run dev        # dev server — no build step required
+npm install
+npm run dev
 ```
 
-**Manual install:**
+Or with other package managers:
 
 ```bash
-npm install fnetro hono
-npm install -D vite typescript @hono/vite-dev-server
-# Node.js only:
-npm install -D @hono/node-server
+pnpm create @netrojs/fnetro@latest my-app
+bun create @netrojs/fnetro my-app
+deno run -A npm:create-fnetro my-app
 ```
 
 ---
 
 ## How it works
 
-FNetro is **three files** and no magic:
-
-| File | Size | Purpose |
-|---|---|---|
-| `fnetro/core` | ~734 lines | Vue-like reactivity + all route/layout/middleware type definitions |
-| `fnetro/server` | ~415 lines | `createFNetro()`, SSR renderer, `serve()` (auto-detects runtime), Vite plugin |
-| `fnetro/client` | ~307 lines | SPA boot, click interception, hover prefetch, navigation lifecycle |
-
-**First load (SSR):**
 ```
-Browser  →  GET /posts/hello
-Server   →  runs loader({ slug: 'hello' }) → { post: {...} }
-Server   →  renderToString(<Layout><PostPage post={...} /></Layout>)
-Server   →  injects window.__FNETRO_STATE__ = { "/posts/hello": { post: {...} } }
-Browser  →  receives full HTML — visible immediately, works without JS
-Browser  →  loads client.js → reads __FNETRO_STATE__ synchronously
-Client   →  render(<Layout><PostPage post={...} /></Layout>) → live DOM
-             ↑ zero extra fetch — same data, no loading spinner
-```
-
-**SPA navigation:**
-```
-User clicks  <a href="/posts/world">
-Client       intercepts click
-Client   →   fetch('/posts/world', { 'x-fnetro-spa': '1' })
-Server   →   runs loader() → returns JSON { html, state, params, url }
-Client   →   render(new page tree) → swaps DOM in place
-Client   →   history.pushState() → URL updates, scroll resets
+Browser                              Server (Hono)
+────────────────────────────────     ─────────────────────────────────────
+                                     Global middleware
+                                     ↓
+                                     Route match ([id], [...slug], *)
+                                     ↓
+                                     Route middleware
+                                     ↓
+                                     Loader (async, type-safe)
+                                     ↓
+                         SSR ──────  SolidJS renderToStringAsync()
+                          │          ↓
+HTML + hydration script ◄─┘          SEO <head> injection
+                                     ↓
+                                     HTML shell (state + params + seo embedded)
+                                     ↓
+                         SPA ──────  JSON payload (state + seo only)
+                          │
+hydrate() ◄───────────────┘
+↓
+Client middleware chain
+↓
+SolidJS reactive component tree
+(module-level signals persist across navigations)
 ```
 
 ---
 
-## Project structure
-
-The scaffold generates this layout:
-
-```
-my-app/
-├── app.ts              # Shared FNetro app — used by dev server AND server.ts
-├── server.ts           # Production entry — calls serve()
-├── client.ts           # Browser entry — calls boot()
-├── vite.config.ts      # fnetroVitePlugin + @hono/vite-dev-server
-├── tsconfig.json
-├── package.json
-│
-├── app/
-│   ├── layouts.tsx     # Root layout (nav, footer, theme)
-│   ├── store.ts        # Global reactive state (optional)
-│   └── routes/
-│       ├── home.tsx    # GET /
-│       ├── about.tsx   # GET /about
-│       ├── api.ts      # Raw Hono routes at /api
-│       └── posts/
-│           ├── index.tsx       # GET /posts
-│           └── [slug].tsx      # GET /posts/:slug
-│
-└── public/
-    └── style.css
-```
-
-**`app.ts`** exports `fnetro` and `default` (the fetch handler). `@hono/vite-dev-server` imports the default export during development. `server.ts` imports `fnetro` for production.
-
-```ts
-// app.ts
-import { createFNetro } from 'fnetro/server'
-import { RootLayout } from './app/layouts'
-import home from './app/routes/home'
-
-export const fnetro = createFNetro({ layout: RootLayout, routes: [home] })
-export default fnetro.handler  // consumed by @hono/vite-dev-server in dev
-```
-
-```ts
-// server.ts — production only
-import { serve } from 'fnetro/server'
-import { fnetro } from './app'
-await serve({ app: fnetro, port: 3000 })
-```
-
----
-
-## Core concepts
+## Routing
 
 ### `definePage`
 
-A page is a path + optional server loader + JSX component. Everything in one file — no "use client" directives, no separate API routes, no split files.
+Define a route with an optional SSR loader, SEO config, and a SolidJS component.
 
 ```tsx
 // app/routes/post.tsx
-import { definePage, ref, use } from 'fnetro/core'
-
-// Module-level signal — value persists across SPA navigations
-const viewCount = ref(0)
+import { definePage } from '@netrojs/fnetro'
 
 export default definePage({
   path: '/posts/[slug]',
 
-  // Runs on the server. Return value becomes Page props.
-  // Serialized into window.__FNETRO_STATE__ — client reads it without refetching.
-  async loader(c) {
+  loader: async (c) => {
     const slug = c.req.param('slug')
-    const post = await db.findPost(slug)
-    if (!post) throw new Error('Not found')
+    const post = await db.posts.findBySlug(slug)
+    if (!post) return c.notFound()
     return { post }
   },
 
-  // Rendered server-side on first load, client-side on SPA navigation.
-  // Same JSX source — two runtimes (hono/jsx on server, hono/jsx/dom on client).
+  seo: (data) => ({
+    title:       `${data.post.title} — My Blog`,
+    description: data.post.excerpt,
+    ogImage:     data.post.coverUrl,
+    twitterCard: 'summary_large_image',
+  }),
+
   Page({ post, url, params }) {
-    const views = use(viewCount)  // reactive subscription
-    return (
-      <article>
-        <h1>{post.title}</h1>
-        <p>{views} views this session</p>
-        <button onClick={() => viewCount.value++}>👁</button>
-      </article>
-    )
+    return <article>{post.title}</article>
   },
 })
 ```
 
-Props available in every `Page`:
+**Path patterns:**
 
-| Prop | Type | Description |
+| Pattern | Matches | `params` |
 |---|---|---|
-| `url` | `string` | Current pathname, e.g. `/posts/hello` |
-| `params` | `Record<string, string>` | Parsed path params, e.g. `{ slug: 'hello' }` |
-| `...loaderData` | inferred | Every key returned by `loader()` |
+| `/posts/[slug]` | `/posts/hello-world` | `{ slug: 'hello-world' }` |
+| `/files/[...rest]` | `/files/a/b/c` | `{ rest: 'a/b/c' }` |
+| `/shop/*` | `/shop/anything` | *(positional)* |
 
 ---
 
 ### `defineGroup`
 
-Groups nest routes under a prefix, sharing a layout and middleware chain.
+Group routes under a shared URL prefix, layout, and middleware.
 
-```tsx
-import { defineGroup, definePage } from 'fnetro/core'
-import { AdminLayout } from '../layouts'
-import { requireAuth, auditLog } from '../middleware'
-
-const dashboard = definePage({ path: '',        loader: ..., Page: ... })  // /admin
-const users     = definePage({ path: '/users',  loader: ..., Page: ... })  // /admin/users
-const settings  = definePage({ path: '/settings', loader: ..., Page: ... })
+```ts
+import { defineGroup } from '@netrojs/fnetro'
 
 export const adminGroup = defineGroup({
-  prefix: '/admin',
-  layout: AdminLayout,                        // overrides app-level layout
-  middleware: [requireAuth, auditLog],        // applied to every route in group
-  routes: [dashboard, users, settings],
+  prefix:     '/admin',
+  layout:     AdminLayout,   // optional — overrides app default
+  middleware: [requireAuth, auditLog],
+  routes:     [dashboard, users, settings],
 })
 ```
 
 Groups nest arbitrarily:
 
-```tsx
+```ts
 defineGroup({
-  prefix: '/org/[orgId]',
-  middleware: [loadOrg],
+  prefix: '/api',
   routes: [
-    definePage({ path: '', ... }),
-    defineGroup({
-      prefix: '/team',
-      middleware: [requireTeamMember],
-      routes: [
-        definePage({ path: '/[teamId]', ... })  // /org/:orgId/team/:teamId
-      ],
-    }),
+    defineGroup({ prefix: '/v1', routes: [v1] }),
+    defineGroup({ prefix: '/v2', routes: [v2] }),
   ],
 })
 ```
@@ -260,123 +172,225 @@ defineGroup({
 
 ### `defineLayout`
 
-A layout wraps pages with shared chrome — nav, footer, theme, auth state.
+Wrap every page with a shared shell (nav, footer, providers).
 
 ```tsx
-// app/layouts.tsx
-import { defineLayout, use, ref } from 'fnetro/core'
-import { theme, toggleTheme } from './store'
+import { defineLayout } from '@netrojs/fnetro'
+import { createSignal } from 'solid-js'
 
-export const RootLayout = defineLayout(function Layout({ children, url, params }) {
-  const t = use(theme)  // reactive — re-renders when theme changes
+// Module-level signal — persists across SPA navigations
+const [sidebarOpen, setSidebarOpen] = createSignal(false)
 
-  return (
-    <div class={`app theme-${t}`}>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/posts">Posts</a>
-        <button onClick={toggleTheme}>
-          {t === 'dark' ? '☀️' : '🌙'}
-        </button>
-      </nav>
-      <main>{children}</main>
-      <footer>Built with ⬡ FNetro</footer>
-    </div>
-  )
-})
+export const RootLayout = defineLayout(({ children, url, params }) => (
+  <div class="app">
+    <nav>
+      <a href="/" class={url === '/' ? 'active' : ''}>Home</a>
+      <a href="/about" class={url === '/about' ? 'active' : ''}>About</a>
+    </nav>
+    <main>{children}</main>
+    <footer>© 2025</footer>
+  </div>
+))
 ```
 
-**Override or remove the layout per page:**
+**Per-page override:**
 
-```tsx
-// Use a custom layout just for this page
-definePage({ path: '/landing', layout: FullscreenLayout, Page: ... })
+```ts
+// Use a different layout
+definePage({ path: '/landing', layout: LandingLayout, Page: ... })
 
-// Render without any layout (bare HTML)
-definePage({ path: '/embed',   layout: false,            Page: ... })
+// Disable layout entirely
+definePage({ path: '/embed',   layout: false,         Page: ... })
 ```
 
 ---
 
 ### `defineApiRoute`
 
-Mount raw Hono routes at any path. Full Hono API: routing, middleware, validators, streaming, WebSockets. API routes are registered before the page handler so `/api/*` is never caught by SPA navigation.
+Mount raw Hono sub-routes. Full Hono API — REST, RPC, WebSocket, streaming.
 
-```tsx
-// app/routes/api.ts
-import { defineApiRoute } from 'fnetro/core'
+```ts
+import { defineApiRoute } from '@netrojs/fnetro'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 
-export const apiRoutes = defineApiRoute('/api', (app) => {
-  // GET /api/health
-  app.get('/health', (c) => c.json({ status: 'ok', ts: Date.now() }))
-
-  // GET /api/posts
-  app.get('/posts', async (c) => {
-    const posts = await db.posts.findAll()
-    return c.json({ posts })
-  })
-
-  // POST /api/posts — with Zod validation
-  app.post(
-    '/posts',
-    zValidator('json', z.object({ title: z.string().min(1), body: z.string() })),
-    async (c) => {
-      const data = c.req.valid('json')
-      const post = await db.posts.create(data)
-      return c.json(post, 201)
-    }
+export const api = defineApiRoute('/api', (app) => {
+  app.get('/health', (c) =>
+    c.json({ status: 'ok', ts: Date.now() }),
   )
 
-  // Mount a sub-app
-  app.route('/admin', adminRpc)
+  app.get('/users/:id', async (c) => {
+    const user = await db.users.find(c.req.param('id'))
+    return user ? c.json(user) : c.json({ error: 'not found' }, 404)
+  })
+
+  app.post(
+    '/items',
+    zValidator('json', z.object({ name: z.string().min(1) })),
+    async (c) => {
+      const item = await db.items.create(c.req.valid('json'))
+      return c.json(item, 201)
+    },
+  )
 })
 ```
 
 ---
 
-### `defineMiddleware`
+## Loaders
 
-Works at app, group, or page level. Receives the Hono `Context` and a `next` function.
+Loaders run **on the server on every request** — both initial SSR and SPA navigations. The return value is JSON-serialised and injected as page props.
 
 ```ts
-// app/middleware/auth.ts
-import { defineMiddleware } from 'fnetro/core'
+definePage({
+  path: '/dashboard',
 
-export const requireAuth = defineMiddleware(async (c, next) => {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '')
-  const user  = token ? verifyJwt(token) : null
-  if (!user) return c.json({ error: 'Unauthorized' }, 401)
-  c.set('user', user)
-  await next()
-})
+  loader: async (c) => {
+    // Full Hono Context — headers, cookies, query params, env bindings
+    const session = getCookie(c, 'session')
+    if (!session) return c.redirect('/login')
 
-export const rateLimit = defineMiddleware(async (c, next) => {
-  const ip = c.req.header('cf-connecting-ip') ?? 'unknown'
-  if (await limiter.isLimited(ip)) return c.json({ error: 'Rate limited' }, 429)
-  await next()
-})
+    const user  = await auth.verify(session)
+    const stats = await db.stats.forUser(user.id)
+    return { user, stats }
+  },
 
-export const logger = defineMiddleware(async (c, next) => {
-  const start = Date.now()
-  await next()
-  console.log(`${c.req.method} ${c.req.url} ${c.res.status} ${Date.now() - start}ms`)
+  Page({ user, stats }) { /* typed */ },
 })
 ```
 
-**Apply at every level:**
+**Type-safe loaders:**
 
 ```ts
+interface DashboardData { user: User; stats: Stats }
+
+definePage<DashboardData>({
+  loader: async (c): Promise<DashboardData> => ({
+    user:  await getUser(c),
+    stats: await getStats(c),
+  }),
+  Page({ user, stats }) { /* DashboardData & { url, params } */ },
+})
+```
+
+---
+
+## SEO
+
+Every page can declare `seo` as a **static object** or a **function of loader data**.
+App-level `seo` provides global defaults; page-level values override them.
+
+```ts
+// app.ts — global defaults applied to every page
 createFNetro({
-  middleware: [logger],              // every request
+  seo: {
+    ogType:      'website',
+    ogSiteName:  'My App',
+    twitterCard: 'summary_large_image',
+    twitterSite: '@myapp',
+    robots:      'index, follow',
+    themeColor:  '#0d0f14',
+  },
+  routes: [...],
+})
+```
+
+```ts
+// app/routes/post.tsx — page overrides (merged with app defaults)
+definePage({
+  path: '/posts/[slug]',
+  loader: (c) => ({ post: await getPost(c.req.param('slug')) }),
+
+  seo: (data, params) => ({
+    title:            `${data.post.title} — My Blog`,
+    description:      data.post.excerpt,
+    canonical:        `https://example.com/posts/${params.slug}`,
+    ogTitle:          data.post.title,
+    ogDescription:    data.post.excerpt,
+    ogImage:          data.post.coverUrl,
+    ogImageWidth:     '1200',
+    ogImageHeight:    '630',
+    twitterTitle:     data.post.title,
+    twitterImage:     data.post.coverUrl,
+    jsonLd: {
+      '@context':    'https://schema.org',
+      '@type':       'Article',
+      headline:      data.post.title,
+      author:        { '@type': 'Person', name: data.post.authorName },
+      datePublished: data.post.publishedAt,
+      image:         data.post.coverUrl,
+    },
+    extra: [
+      { name: 'article:author', content: data.post.authorName },
+    ],
+  }),
+
+  Page({ post }) { ... },
+})
+```
+
+### All SEO fields
+
+| Field | `<head>` output |
+|---|---|
+| `title` | `<title>` |
+| `description` | `<meta name="description">` |
+| `keywords` | `<meta name="keywords">` |
+| `author` | `<meta name="author">` |
+| `robots` | `<meta name="robots">` |
+| `canonical` | `<link rel="canonical">` |
+| `themeColor` | `<meta name="theme-color">` |
+| `ogTitle` | `<meta property="og:title">` |
+| `ogDescription` | `<meta property="og:description">` |
+| `ogImage` | `<meta property="og:image">` |
+| `ogImageAlt` | `<meta property="og:image:alt">` |
+| `ogImageWidth` | `<meta property="og:image:width">` |
+| `ogImageHeight` | `<meta property="og:image:height">` |
+| `ogUrl` | `<meta property="og:url">` |
+| `ogType` | `<meta property="og:type">` |
+| `ogSiteName` | `<meta property="og:site_name">` |
+| `ogLocale` | `<meta property="og:locale">` |
+| `twitterCard` | `<meta name="twitter:card">` |
+| `twitterSite` | `<meta name="twitter:site">` |
+| `twitterCreator` | `<meta name="twitter:creator">` |
+| `twitterTitle` | `<meta name="twitter:title">` |
+| `twitterDescription` | `<meta name="twitter:description">` |
+| `twitterImage` | `<meta name="twitter:image">` |
+| `twitterImageAlt` | `<meta name="twitter:image:alt">` |
+| `jsonLd` | `<script type="application/ld+json">` |
+| `extra` | Arbitrary `<meta>` tags |
+
+On SPA navigation, all `<meta>` tags and `document.title` are updated automatically — no full reload.
+
+---
+
+## Middleware
+
+### Server middleware
+
+Hono middleware at three levels — global, group, and page.
+
+```ts
+import { createFNetro } from '@netrojs/fnetro/server'
+import { cors }         from 'hono/cors'
+import { logger }       from 'hono/logger'
+import { bearerAuth }   from 'hono/bearer-auth'
+
+const fnetro = createFNetro({
+  // 1. Global — runs on every request
+  middleware: [logger(), cors({ origin: 'https://example.com' })],
+
   routes: [
+    // 2. Group-level — runs for every route in the group
     defineGroup({
-      middleware: [requireAuth],     // every route in group
+      prefix:     '/admin',
+      middleware: [bearerAuth({ token: process.env.API_KEY! })],
       routes: [
+        // 3. Page-level — runs for this route only
         definePage({
-          middleware: [rateLimit],   // this page only
-          Page: ...,
+          path:       '/reports',
+          middleware: [rateLimiter({ max: 10, window: '1m' })],
+          Page:       Reports,
         }),
       ],
     }),
@@ -384,811 +398,612 @@ createFNetro({
 })
 ```
 
----
-
-## Reactivity
-
-FNetro implements the complete Vue Reactivity API from scratch (~500 lines, no external dependencies). All functions work identically on server (SSR, no DOM) and client (live re-renders).
-
-### `ref`
-
-A reactive container for any value. Read with `.value`, write with `.value =`.
+Middleware can short-circuit by returning a `Response`:
 
 ```ts
-import { ref } from 'fnetro/core'
-
-const count = ref(0)
-count.value++         // triggers all watchers
-console.log(count.value)  // 1
-```
-
-**`shallowRef`** — reactive only at the top level (mutations inside an object won't trigger):
-
-```ts
-const list = shallowRef<string[]>([])
-list.value.push('a')   // won't trigger — shallow
-list.value = [...list.value, 'a']  // triggers — new reference
-```
-
-**`triggerRef`** — manually force-trigger a shallow ref after an internal mutation:
-
-```ts
-list.value.push('a')
-triggerRef(list)       // force subscribers to re-run
-```
-
----
-
-### `reactive`
-
-Deep reactive proxy of an object. All nested reads and writes are tracked automatically.
-
-```ts
-import { reactive } from 'fnetro/core'
-
-const state = reactive({
-  user: { name: 'Alice', role: 'admin' },
-  cart: { items: [] as CartItem[] },
-})
-
-state.user.name = 'Bob'        // triggers any watcher that read state.user.name
-state.cart.items.push(item)    // array mutations tracked
-```
-
-**`shallowReactive`** — tracks only top-level keys, not nested objects:
-
-```ts
-const form = shallowReactive({ name: '', email: '' })
-```
-
----
-
-### `computed`
-
-A lazily-evaluated, cached derived value. Re-evaluates only when its dependencies change.
-
-```ts
-import { ref, computed } from 'fnetro/core'
-
-const firstName = ref('Alice')
-const lastName  = ref('Smith')
-
-// Read-only
-const fullName = computed(() => `${firstName.value} ${lastName.value}`)
-console.log(fullName.value)  // 'Alice Smith'
-
-// Writable
-const name = computed({
-  get: () => `${firstName.value} ${lastName.value}`,
-  set: (v) => {
-    const [f, l] = v.split(' ')
-    firstName.value = f
-    lastName.value  = l
-  },
-})
-name.value = 'Bob Jones'
-console.log(firstName.value)  // 'Bob'
-```
-
----
-
-### `watch`
-
-Runs a callback when a source changes. Not immediate by default.
-
-```ts
-import { ref, watch } from 'fnetro/core'
-
-const count = ref(0)
-
-// Single source
-watch(count, (newVal, oldVal) => {
-  console.log(`${oldVal} → ${newVal}`)
-})
-
-// Multiple sources
-const a = ref(1), b = ref(2)
-watch([a, b], ([newA, newB], [oldA, oldB]) => {
-  console.log(newA, newB)
-})
-
-// Options
-watch(count, (n, o, cleanup) => {
-  const timer = setTimeout(() => sync(n), 500)
-  cleanup(() => clearTimeout(timer))  // runs before the next invocation
-}, {
-  immediate: true,  // fire immediately with the current value
-  deep: true,       // deep equality check (objects)
-  once: true,       // auto-stop after first invocation
-})
-
-// Stop watching
-const stop = watch(count, () => { ... })
-stop()
-```
-
----
-
-### `watchEffect`
-
-Like `watch` but auto-tracks every reactive value read inside the function body. Runs immediately.
-
-```ts
-import { ref, reactive, watchEffect } from 'fnetro/core'
-
-const user  = reactive({ name: 'Alice' })
-const theme = ref('dark')
-
-// Automatically tracks user.name and theme.value
-const stop = watchEffect(() => {
-  document.title = `${user.name} — ${theme.value} mode`
-})
-
-user.name  = 'Bob'    // re-runs
-theme.value = 'light' // re-runs
-
-stop()  // remove the effect
-```
-
----
-
-### `effectScope`
-
-Groups effects together so they can all be stopped at once. Useful for feature-level cleanup (e.g. when a modal closes, stop all effects created inside it).
-
-```ts
-import { ref, watchEffect, effectScope, onScopeDispose } from 'fnetro/core'
-
-const scope = effectScope()
-
-scope.run(() => {
-  // These effects are tied to `scope`
-  watchEffect(() => { ... })
-  watchEffect(() => { ... })
-
-  // Runs when scope.stop() is called
-  onScopeDispose(() => cleanup())
-})
-
-// Stops all effects in the scope + runs cleanups
-scope.stop()
-```
-
----
-
-### Helpers
-
-```ts
-import {
-  isRef,           // (v) → v is Ref<unknown>
-  isReactive,      // (v) → boolean
-  isReadonly,      // (v) → boolean
-  unref,           // (r) → unwraps a Ref or returns the value as-is
-  toRef,           // (object, key) → a Ref linked to object[key]
-  toRefs,          // (object) → { [key]: Ref } — reactive-safe destructure
-  markRaw,         // (object) → never proxied (e.g. third-party class instances)
-  toRaw,           // (proxy) → the original unwrapped object
-  readonly,        // (object) → readonly proxy — mutations warn in dev
-} from 'fnetro/core'
-
-// toRefs — destructure a reactive object without losing reactivity
-const pos = reactive({ x: 0, y: 0 })
-const { x, y } = toRefs(pos)
-x.value = 10   // mutates pos.x
-pos.x   = 20   // x.value reads 20
-
-// markRaw — prevent third-party instances from being proxied
-const chart = markRaw(new Chart(canvas, config))
-state.chart = chart  // stored as-is, not wrapped in a Proxy
-```
-
----
-
-### Component hooks
-
-These are the bridge between signals and JSX components. On the server they return plain values (no reactivity needed). On the client they're wired to `hono/jsx/dom` to schedule re-renders.
-
-#### `use(source)` — subscribe to any Ref or getter
-
-```tsx
-import { ref, computed, use } from 'fnetro/core'
-
-// Module-level — shared across all components and page navigations
-const cartCount = ref(0)
-const doubled   = computed(() => cartCount.value * 2)
-
-function CartIcon() {
-  const count = use(cartCount)   // re-renders when cartCount changes
-  const dbl   = use(doubled)     // re-renders when doubled changes
-  const total = use(() => cartCount.value * 9.99)  // getter — auto-computed
-
-  return <span>🛒 {count} (${total.toFixed(2)})</span>
-}
-```
-
-#### `useLocalRef(init)` — component-scoped Ref
-
-```tsx
-import { useLocalRef, use } from 'fnetro/core'
-
-function Toggle() {
-  const open = useLocalRef(false)   // created once, lost on unmount
-  const isOpen = use(open)
-  return (
-    <div>
-      <button onClick={() => open.value = !isOpen}>
-        {isOpen ? 'Close' : 'Open'}
-      </button>
-      {isOpen && <div class="panel">...</div>}
-    </div>
-  )
-}
-```
-
-#### `useLocalReactive(init)` — component-scoped reactive object
-
-```tsx
-import { useLocalReactive } from 'fnetro/core'
-
-function LoginForm() {
-  const form = useLocalReactive({ email: '', password: '', loading: false })
-
-  async function submit() {
-    form.loading = true
-    await api.login(form.email, form.password)
-    form.loading = false
-  }
-
-  return (
-    <form onSubmit={submit}>
-      <input value={form.email} onInput={(e: any) => form.email = e.target.value} />
-      <input type="password" value={form.password} onInput={(e: any) => form.password = e.target.value} />
-      <button disabled={form.loading}>{form.loading ? 'Signing in…' : 'Sign in'}</button>
-    </form>
-  )
+const requireAuth: HonoMiddleware = async (c, next) => {
+  const session = getCookie(c, 'session')
+  if (!session) return c.redirect('/login')
+  c.set('user', await verifySession(session))
+  await next()
 }
 ```
 
 ---
 
-## Routing
+### Client middleware
 
-### Dynamic segments
-
-| Pattern | Example URL | `params` |
-|---|---|---|
-| `/posts/[slug]` | `/posts/hello-world` | `{ slug: 'hello-world' }` |
-| `/files/[...path]` | `/files/a/b/c.pdf` | `{ path: 'a/b/c.pdf' }` |
-| `/[org]/[repo]` | `/acme/backend` | `{ org: 'acme', repo: 'backend' }` |
-
-Params are available in `loader` via `c.req.param('key')` and in `Page` via the `params` prop.
-
-```tsx
-definePage({
-  path: '/posts/[slug]',
-  loader: (c) => {
-    const slug = c.req.param('slug')
-    return { post: db.findBySlug(slug) }
-  },
-  Page({ post, params }) {
-    // params.slug is also available here
-    return <article><h1>{post.title}</h1></article>
-  },
-})
-```
-
-### Route groups
-
-Prefix, layout, and middleware are inherited by all routes in the group:
-
-```tsx
-createFNetro({
-  layout: RootLayout,
-  routes: [
-    apiRoutes,    // defineApiRoute — registered before the page handler
-    adminGroup,   // defineGroup — layout + middleware override
-    home,
-    posts,
-    postDetail,
-  ],
-})
-```
-
-### Layout overrides
-
-Priority order (highest wins): **page-level** → **group-level** → **app-level**
-
-```tsx
-const adminGroup = defineGroup({
-  prefix: '/admin',
-  layout: AdminLayout,   // overrides RootLayout for all /admin/* routes
-  routes: [
-    definePage({
-      path: '/secret',
-      layout: false,     // no layout at all — bare HTML response
-      Page: () => <div>secret</div>,
-    }),
-  ],
-})
-```
-
----
-
-## Server
-
-### `createFNetro`
-
-Assembles a Hono app from your route tree. Returns a `FNetroApp` with `.app` (the raw Hono instance) and `.handler` (the fetch function).
-
-```ts
-import { createFNetro } from 'fnetro/server'
-
-const fnetro = createFNetro({
-  layout: RootLayout,
-  middleware: [logger, sessionMiddleware],
-  routes: [apiRoutes, adminGroup, home, posts],
-  notFound: () => <NotFoundPage />,
-})
-
-// Access the raw Hono instance for anything not covered by createFNetro
-fnetro.app.onError((err, c) => c.json({ error: err.message }, 500))
-fnetro.app.use('/healthz', (c) => c.text('ok'))
-```
-
-**`AppConfig` options:**
-
-| Option | Type | Description |
-|---|---|---|
-| `layout` | `LayoutDef` | Default layout for all pages |
-| `middleware` | `FNetroMiddleware[]` | Global middleware, applied to every request |
-| `routes` | `(PageDef \| GroupDef \| ApiRouteDef)[]` | Route definitions |
-| `notFound` | `() => AnyJSX` | Custom 404 page |
-
----
-
-### `serve`
-
-Starts the HTTP server. Auto-detects the runtime unless `runtime` is specified.
-
-```ts
-import { serve } from 'fnetro/server'
-import { fnetro } from './app'
-
-// Auto-detect (works for Node, Bun, Deno)
-await serve({ app: fnetro, port: 3000 })
-
-// Explicit
-await serve({ app: fnetro, port: 8080, runtime: 'bun', hostname: '127.0.0.1' })
-```
-
-**`ServeOptions`:**
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `app` | `FNetroApp` | required | Returned by `createFNetro()` |
-| `port` | `number` | `3000` | Port to listen on (env `PORT` also checked) |
-| `hostname` | `string` | `'0.0.0.0'` | Bind address |
-| `runtime` | `Runtime` | auto-detected | Override auto-detection |
-| `staticDir` | `string` | `'./dist'` | Root dir for static asset serving (Node only) |
-
-**Edge runtimes** — don't call `serve()`, just export the handler:
-
-```ts
-// Cloudflare Workers / generic WinterCG
-export default { fetch: fnetro.handler }
-```
-
-### Runtime detection
-
-```ts
-import { detectRuntime } from 'fnetro/server'
-
-const runtime = detectRuntime()
-// → 'bun' | 'deno' | 'node' | 'edge' | 'unknown'
-```
-
-Detection order: `Bun` global → `Deno` global → `process.versions.node` → `'edge'`.
-
----
-
-## Client
-
-### `boot`
-
-Call once in `client.ts`. Reads `window.__FNETRO_STATE__` injected by the server and hydrates the page — no extra network request.
+Runs before every **SPA navigation**. Register with `useClientMiddleware()` **before** `boot()`.
 
 ```ts
 // client.ts
-import { boot } from 'fnetro/client'
-import { RootLayout } from './app/layouts'
-import home from './app/routes/home'
-import posts from './app/routes/posts'
+import { boot, useClientMiddleware, navigate } from '@netrojs/fnetro/client'
 
-boot({
-  layout: RootLayout,
-  routes: [home, posts],
-  prefetchOnHover: true,   // default: true
+// Analytics — fires after navigation completes
+useClientMiddleware(async (url, next) => {
+  await next()
+  analytics.page({ url })
 })
-```
 
-Routes in `boot()` must match the routes in `createFNetro()` exactly (same array, same order). The client uses them for path matching during SPA navigation.
-
----
-
-### `navigate`
-
-Programmatic SPA navigation.
-
-```ts
-import { navigate } from 'fnetro/client'
-
-// Push a new history entry and navigate
-await navigate('/posts/new-post')
-
-// Replace current entry (no back button entry)
-await navigate('/dashboard', { replace: true })
-
-// Navigate without scrolling to the top
-await navigate('/modal-route', { scroll: false })
-```
-
-Plain `<a>` tags are intercepted automatically — no `<Link>` component required:
-
-```html
-<a href="/posts/hello">Normal anchor — SPA handled</a>
-<a href="/download.zip" data-no-spa>Force full navigation</a>
-<a href="https://external.com" rel="external">External link</a>
-```
-
----
-
-### `prefetch`
-
-Warms the SPA fetch cache for a URL. By default called automatically on `mouseover`. Call manually for more aggressive prefetching (e.g. on `mousedown` or when an item enters the viewport).
-
-```ts
-import { prefetch } from 'fnetro/client'
-
-// Prefetch on mousedown — faster than waiting for click
-button.addEventListener('mousedown', () => prefetch('/posts/next'))
-
-// Prefetch a list of likely-next pages on page load
-const likelyNextRoutes = ['/posts/hello', '/about']
-likelyNextRoutes.forEach(prefetch)
-```
-
-Disable automatic hover prefetch:
-```ts
-boot({ prefetchOnHover: false, ... })
-```
-
----
-
-### Lifecycle hooks
-
-```ts
-import { onBeforeNavigate, onAfterNavigate } from 'fnetro/client'
-
-// Runs before every SPA navigation — async, awaited
-// Throw any error to cancel the navigation
-const stopBefore = onBeforeNavigate(async (url) => {
-  if (formHasUnsavedChanges) {
-    const confirmed = await showConfirmDialog('Leave page?')
-    if (!confirmed) throw new Error('navigation cancelled')
+// Auth guard — redirects before navigation
+useClientMiddleware(async (url, next) => {
+  if (!isLoggedIn() && url.startsWith('/dashboard')) {
+    await navigate('/login?redirect=' + encodeURIComponent(url))
+    return  // cancel the original navigation
   }
+  await next()
 })
 
-// Runs after navigation completes — including the initial boot
-const stopAfter = onAfterNavigate((url) => {
-  analytics.page(url)
-  window.posthog?.capture('$pageview', { url })
+// Loading indicator
+useClientMiddleware(async (url, next) => {
+  NProgress.start()
+  try   { await next() }
+  finally { NProgress.done() }
 })
 
-// Remove a listener
-stopBefore()
-stopAfter()
+boot({ routes, layout })
+```
+
+The chain runs in registration order: `mw1 → mw2 → ... → fetch + render`. Omitting `next()` in any middleware cancels the navigation.
+
+---
+
+## SolidJS reactivity
+
+Use SolidJS primitives directly — no FNetro wrappers.
+
+**Module-level signals** persist across SPA navigations (they live for the lifetime of the page JS):
+
+```tsx
+import { createSignal, createMemo, createEffect, For } from 'solid-js'
+import { definePage } from '@netrojs/fnetro'
+
+const [count, setCount] = createSignal(0)
+const doubled = createMemo(() => count() * 2)
+
+export default definePage({
+  path: '/counter',
+  Page() {
+    createEffect(() => { document.title = `Count: ${count()}` })
+    return (
+      <div>
+        <p>{count()} × 2 = {doubled()}</p>
+        <button onClick={() => setCount(n => n + 1)}>+</button>
+      </div>
+    )
+  },
+})
+```
+
+**Stores** for structured reactive state:
+
+```tsx
+import { createStore, produce } from 'solid-js/store'
+
+interface Todo { id: number; text: string; done: boolean }
+const [todos, setTodos] = createStore<{ items: Todo[] }>({ items: [] })
+
+function toggle(id: number) {
+  setTodos('items', t => t.id === id, produce(t => { t.done = !t.done }))
+}
+
+export default definePage({
+  path: '/todos',
+  Page() {
+    return (
+      <For each={todos.items}>
+        {(todo) => (
+          <li
+            style={{ 'text-decoration': todo.done ? 'line-through' : 'none' }}
+            onClick={() => toggle(todo.id)}
+          >
+            {todo.text}
+          </li>
+        )}
+      </For>
+    )
+  },
+})
+```
+
+---
+
+## Navigation
+
+### Links — automatic interception
+
+Any `<a href="...">` pointing to a registered route is intercepted automatically. No special component needed.
+
+```tsx
+<a href="/about">About</a>             {/* → SPA navigation */}
+<a href="/posts/hello">Post</a>        {/* → SPA navigation */}
+<a href="/legacy" data-no-spa>Legacy</a>   {/* → full page load */}
+<a href="https://example.com" rel="external">External</a>  {/* → full page load */}
+```
+
+### Programmatic navigation
+
+```ts
+import { navigate } from '@netrojs/fnetro/client'
+
+await navigate('/about')                          // push history
+await navigate('/login', { replace: true })       // replace history entry
+await navigate('/modal', { scroll: false })       // skip scroll-to-top
+```
+
+### Prefetch
+
+```ts
+import { prefetch } from '@netrojs/fnetro/client'
+
+prefetch('/about')   // warm the loader cache on hover / focus
+```
+
+Hover-based prefetching is automatic when `prefetchOnHover: true` (the default) is set in `boot()`.
+
+---
+
+## Asset handling
+
+### Development
+
+`@hono/vite-dev-server` injects Vite's dev client and HMR scripts automatically. No asset config needed.
+
+### Production
+
+`vite build` produces a `manifest.json` alongside the hashed client bundle. The server reads the manifest at startup to resolve the correct filenames.
+
+```ts
+// app.ts
+createFNetro({
+  routes,
+  assets: {
+    manifestDir:   'dist/assets',  // directory containing manifest.json
+    manifestEntry: 'client.ts',    // key in the manifest (your client entry)
+  },
+})
+```
+
+**Manual override** (edge runtimes / CDN-hosted assets):
+
+```ts
+createFNetro({
+  assets: {
+    scripts: ['https://cdn.example.com/client-abc123.js'],
+    styles:  ['https://cdn.example.com/style-def456.css'],
+  },
+})
+```
+
+**Public directory** — static files in `public/` (images, fonts, `robots.txt`, `favicon.ico`) are served at `/` by the Node.js `serve()` helper automatically.
+
+---
+
+## Multi-runtime serve()
+
+```ts
+import { serve } from '@netrojs/fnetro/server'
+
+// Auto-detects Node.js, Bun, or Deno
+await serve({ app: fnetro })
+
+// Explicit configuration
+await serve({
+  app:       fnetro,
+  port:      3000,
+  hostname:  '0.0.0.0',
+  runtime:   'node',       // 'node' | 'bun' | 'deno' | 'edge'
+  staticDir: './dist',     // root for /assets/* and /* static files
+})
+```
+
+**Edge runtimes** (Cloudflare Workers, Deno Deploy, Fastly, etc.):
+
+```ts
+// server.ts
+import { fnetro } from './app'
+
+// Export the Hono fetch handler — the platform calls it directly
+export default { fetch: fnetro.handler }
 ```
 
 ---
 
 ## Vite plugin
 
-`fnetroVitePlugin()` produces both bundles from a single `vite build` command.
-
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite'
-import { fnetroVitePlugin } from 'fnetro/vite'
-import devServer from '@hono/vite-dev-server'
-import bunAdapter from '@hono/vite-dev-server/bun'
+import { defineConfig }     from 'vite'
+import { fnetroVitePlugin } from '@netrojs/fnetro/vite'
+import devServer            from '@hono/vite-dev-server'
 
 export default defineConfig({
   plugins: [
+    // Handles: SolidJS JSX transform, SSR server build, client bundle + manifest
     fnetroVitePlugin({
-      serverEntry: 'server.ts',    // default
-      clientEntry:  'client.ts',   // default
-      serverOutDir: 'dist/server', // default
-      clientOutDir: 'dist/assets', // default
-      serverExternal: ['pg', 'redis'],  // keep out of server bundle
+      serverEntry:    'server.ts',    // default: 'server.ts'
+      clientEntry:    'client.ts',    // default: 'client.ts'
+      serverOutDir:   'dist/server',  // default: 'dist/server'
+      clientOutDir:   'dist/assets',  // default: 'dist/assets'
+      serverExternal: ['@myorg/db'],  // extra server-bundle externals
+      solidOptions:   {},             // forwarded to vite-plugin-solid
     }),
-    devServer({
-      adapter: bunAdapter,
-      entry: 'app.ts',  // must export fnetro.handler as default
-    }),
+
+    // Dev: serves the FNetro app through Vite with hot-reload
+    // app.ts default export must be the Hono *instance* (fnetro.app),
+    // NOT fnetro.handler (plain function, no .fetch property).
+    devServer({ entry: 'app.ts' }),
   ],
-  server: {
-    watch: { ignored: ['**/dist/**'] },
-  },
 })
 ```
 
-**`FNetroPluginOptions`:**
+### Build output
 
-| Option | Default | Description |
-|---|---|---|
-| `serverEntry` | `'server.ts'` | Production server entry |
-| `clientEntry` | `'client.ts'` | Browser SPA entry |
-| `serverOutDir` | `'dist/server'` | Output dir for server bundle |
-| `clientOutDir` | `'dist/assets'` | Output dir for client bundle |
-| `serverExternal` | `[]` | Packages excluded from the server bundle (always excludes `node:*` and `@hono/node-server`) |
-
-**Build output:**
 ```
 dist/
 ├── server/
-│   └── server.js      # Node-compatible ESM, imports fnetro.handler and calls serve()
+│   └── server.js            # SSR server bundle (ESM)
 └── assets/
-    ├── client.js      # Browser ESM, boots the SPA
-    └── style.css      # Your CSS
+    ├── manifest.json        # Vite asset manifest (for hashed URL resolution)
+    ├── client-[hash].js     # Hydration + SPA bundle
+    └── style-[hash].css     # CSS (when imported from JS)
 ```
 
 ---
 
-## Dev server
+## Project structure
 
-`@hono/vite-dev-server` routes HTTP requests directly through your FNetro app inside the Vite process. No `dist/` directory needed — changes to `.ts` and `.tsx` files are reflected instantly.
-
-```bash
-# Node
-vite
-
-# Bun (uses Bun's runtime instead of Node for Vite internals)
-bun --bun vite --host
-
-# Deno
-deno run -A npm:vite
+```
+my-app/
+│
+├── app.ts              # Shared FNetro app — used by dev server AND server.ts
+│                       # Default export must be fnetro.app (Hono instance)
+│
+├── server.ts           # Production entry — imports app.ts, calls serve()
+├── client.ts           # Browser entry — registers middleware, calls boot()
+│
+├── app/
+│   ├── layouts.tsx     # defineLayout() — root shell (nav, footer)
+│   └── routes/
+│       ├── home.tsx    # definePage({ path: '/' })
+│       ├── about.tsx   # definePage({ path: '/about' })
+│       ├── api.ts      # defineApiRoute('/api', fn)
+│       └── posts/
+│           ├── index.tsx       # /posts
+│           └── [slug].tsx      # /posts/:slug
+│
+├── public/
+│   ├── style.css       # Global CSS (served at /style.css)
+│   └── favicon.ico
+│
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
 ```
 
-The `entry` option must point to a file that exports the Hono fetch handler as its default export:
+### `app.ts` vs `server.ts`
 
-```ts
-// app.ts
-export const fnetro = createFNetro({ ... })
-export default fnetro.handler   // ← this is what @hono/vite-dev-server imports
-```
-
----
-
-## Global store pattern
-
-Module-level reactive state persists across SPA navigations because ES modules are cached. Use this for shared auth state, cart, theme, notifications, etc.
-
-```ts
-// app/store.ts
-import { ref, reactive, computed, watch } from 'fnetro/core'
-
-// ── Theme ────────────────────────────────────────────────────────────────────
-export const theme = ref<'dark' | 'light'>('dark')
-export const toggleTheme = () => {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-}
-
-// Persist to localStorage on the client
-if (typeof window !== 'undefined') {
-  const saved = localStorage.getItem('theme') as 'dark' | 'light' | null
-  if (saved) theme.value = saved
-  watch(theme, (t) => localStorage.setItem('theme', t))
-}
-
-// ── Auth ─────────────────────────────────────────────────────────────────────
-export const user = reactive({
-  id: null as string | null,
-  name: '',
-  role: 'guest' as 'guest' | 'user' | 'admin',
-})
-export const isLoggedIn = computed(() => user.id !== null)
-export const isAdmin    = computed(() => user.role === 'admin')
-
-// ── Cart ─────────────────────────────────────────────────────────────────────
-export interface CartItem { id: string; name: string; qty: number; price: number }
-export const cart      = reactive<{ items: CartItem[] }>({ items: [] })
-export const cartCount = computed(() => cart.items.reduce((s, i) => s + i.qty, 0))
-export const cartTotal = computed(() => cart.items.reduce((s, i) => s + i.qty * i.price, 0))
-
-export function addToCart(item: Omit<CartItem, 'qty'>) {
-  const existing = cart.items.find((i) => i.id === item.id)
-  if (existing) { existing.qty++; return }
-  cart.items.push({ ...item, qty: 1 })
-}
-
-export function removeFromCart(id: string) {
-  cart.items = cart.items.filter((i) => i.id !== id)
-}
-```
-
-Using the store in a layout or page:
-
-```tsx
-import { use } from 'fnetro/core'
-import { cartCount, isLoggedIn, user, theme } from '../store'
-
-function NavBar({ url }: { url: string }) {
-  const count    = use(cartCount)
-  const loggedIn = use(isLoggedIn)
-  const name     = use(() => user.name)
-  const t        = use(theme)
-
-  return (
-    <nav class={`nav theme-${t}`}>
-      <a href="/">Home</a>
-      {loggedIn
-        ? <span>👤 {name}</span>
-        : <a href="/login">Sign in</a>
-      }
-      <a href="/cart">🛒 {count > 0 && <span class="badge">{count}</span>}</a>
-    </nav>
-  )
-}
-```
+| File | Purpose |
+|---|---|
+| `app.ts` | Creates the FNetro app. Exports `fnetro` (named) and `fnetro.app` (default). Used by `@hono/vite-dev-server` in dev and imported by `server.ts` in production. |
+| `server.ts` | Production-only entry point. Imports from `app.ts` and calls `serve()`. Never imported by the dev server. |
 
 ---
 
 ## TypeScript
 
-Page props are inferred directly from the loader return type — no annotation needed:
-
-```ts
-definePage({
-  path: '/user/[id]',
-  async loader(c) {
-    const user = await getUser(c.req.param('id'))
-    return { user, role: 'admin' as const }
-  },
-  Page({ user, role, url, params }) {
-    //   ^^^^  User  ^^^^  'admin'  — fully inferred
-  },
-})
-```
-
-Explicit typing when the loader is defined separately:
-
-```ts
-interface PageData {
-  user: User
-  role: 'admin' | 'member'
-}
-
-definePage<PageData>({
-  path: '/user/[id]',
-  loader: async (c): Promise<PageData> => { ... },
-  Page: ({ user, role }) => { ... },
-})
-```
-
-**`tsconfig.json` for a FNetro project:**
+`tsconfig.json` for any FNetro project:
 
 ```json
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ESNext", "DOM"],
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true,
+    "target":                     "ES2022",
+    "module":                     "ESNext",
+    "moduleResolution":           "bundler",
+    "lib":                        ["ES2022", "DOM"],
+    "jsx":                        "preserve",
+    "jsxImportSource":            "solid-js",
+    "strict":                     true,
+    "skipLibCheck":               true,
+    "noEmit":                     true,
     "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true
-  },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist"]
+    "resolveJsonModule":          true,
+    "isolatedModules":            true,
+    "verbatimModuleSyntax":       true
+  }
 }
 ```
 
+> **Important:** `jsxImportSource` must be `"solid-js"` — not `"hono/jsx"`. FNetro v0.2+ uses SolidJS for all rendering.
+
 ---
 
-## Runtime support
+## create-fnetro CLI
 
-| Runtime | `dev` | `build` | `start` | Notes |
-|---|---|---|---|---|
-| **Node.js 18+** | `vite` | `vite build` | `node dist/server/server.js` | `@hono/node-server` required |
-| **Bun** | `bun --bun vite --host` | `bun --bun vite build` | `bun dist/server/server.js` | Native Bun adapter for dev server |
-| **Deno** | `deno run -A npm:vite` | `deno run -A npm:vite build` | `deno run -A dist/server/server.js` | |
-| **Cloudflare Workers** | `wrangler dev` | `vite build` | `wrangler deploy` | Export `fnetro.handler` as default |
-| **Generic WinterCG** | `vite` | `vite build` | — | Export `fnetro.handler` as default |
+Scaffold a new project interactively or from CI:
 
-`serve()` auto-detects the runtime at startup. Pass `runtime` explicitly if auto-detection fails (e.g. when a bundler strips runtime globals):
-
-```ts
-await serve({ app: fnetro, port: 3000, runtime: 'bun' })
+```bash
+npm create @netrojs/fnetro@latest [project-name] [flags]
 ```
+
+### Interactive mode
+
+Running without flags opens a step-by-step prompt:
+
+```
+  ⬡  create-fnetro
+  Full-stack Hono + SolidJS — SSR · SPA · SEO · TypeScript
+
+  ✔ Project name: … my-app
+  ✔ Target runtime: › Node.js
+  ✔ Template: › Minimal
+  ✔ Package manager: › npm
+  ✔ Install dependencies now? … yes
+  ✔ Initialize a git repository? … yes
+```
+
+### CLI flags (non-interactive / CI)
+
+| Flag | Values | Default |
+|---|---|---|
+| `--ci` | — | `false` |
+| `--runtime` | `node` `bun` `deno` `cloudflare` `generic` | `node` |
+| `--template` | `minimal` `full` | `minimal` |
+| `--pkg-manager` | `npm` `pnpm` `yarn` `bun` `deno` | `npm` |
+| `--no-install` | — | installs |
+| `--no-git` | — | initialises |
+
+```bash
+# Non-interactive CI scaffold
+npm create @netrojs/fnetro@latest my-app \
+  --ci \
+  --runtime node \
+  --template full \
+  --pkg-manager pnpm \
+  --no-git
+```
+
+### Templates
+
+**`minimal`** — production-ready starter:
+```
+app.ts  server.ts  client.ts
+app/layouts.tsx
+app/routes/home.tsx     # GET /
+app/routes/about.tsx    # GET /about
+app/routes/api.ts       # GET /api/health  GET /api/hello
+public/style.css
+```
+
+**`full`** — includes SolidJS signal demo, dynamic routes, and shared store:
+```
+(everything in minimal, plus)
+app/store.ts                      # createSignal + createStore examples
+app/routes/counter.tsx            # GET /counter — signals demo
+app/routes/posts/index.tsx        # GET /posts  — SSR list
+app/routes/posts/[slug].tsx       # GET /posts/:slug — dynamic SSR + SEO
+```
+
+### Supported runtimes
+
+| Runtime | Dev command | Prod server |
+|---|---|---|
+| `node` | `vite` (via `@hono/vite-dev-server`) | `@hono/node-server` |
+| `bun` | `bun --bun vite` | `Bun.serve` |
+| `deno` | `deno run -A npm:vite` | `Deno.serve` |
+| `cloudflare` | `wrangler dev` | Cloudflare Workers |
+| `generic` | `vite` | WinterCG `export default { fetch }` |
 
 ---
 
 ## API reference
 
-### `fnetro/core`
+### `@netrojs/fnetro` (core)
 
-**Reactivity**
+**Functions:**
 
-| Symbol | Signature | Description |
+| Export | Signature | Description |
 |---|---|---|
-| `ref` | `<T>(value: T) → Ref<T>` | Reactive primitive |
-| `shallowRef` | `<T>(value: T) → Ref<T>` | Reactive at top level only |
-| `triggerRef` | `(r: Ref) → void` | Force-trigger a shallow ref |
-| `isRef` | `(v) → v is Ref` | Type guard |
-| `unref` | `<T>(r: T \| Ref<T>) → T` | Unwrap a ref |
-| `reactive` | `<T extends object>(t: T) → T` | Deep reactive proxy |
-| `shallowReactive` | `<T extends object>(t: T) → T` | Shallow reactive proxy |
-| `readonly` | `<T extends object>(t: T) → Readonly<T>` | Readonly proxy |
-| `computed` | `<T>(getter) → ComputedRef<T>` | Derived cached value |
-| `computed` | `<T>({ get, set }) → WritableComputedRef<T>` | Writable computed |
-| `watch` | `(source, cb, opts?) → StopHandle` | Reactive watcher |
-| `watchEffect` | `(fn, opts?) → StopHandle` | Auto-tracked side effect |
-| `effect` | `(fn) → StopHandle` | Raw reactive effect |
-| `effectScope` | `() → EffectScope` | Grouped effect lifecycle |
-| `getCurrentScope` | `() → EffectScope \| undefined` | Current active scope |
-| `onScopeDispose` | `(fn) → void` | Register scope cleanup |
-| `toRef` | `(obj, key) → Ref` | Ref linked to object key |
-| `toRefs` | `(obj) → { [k]: Ref }` | Reactive-safe destructure |
-| `markRaw` | `<T>(v: T) → T` | Opt out of reactivity |
-| `toRaw` | `<T>(proxy: T) → T` | Unwrap proxy to original |
-| `isReactive` | `(v) → boolean` | |
-| `isReadonly` | `(v) → boolean` | |
+| `definePage` | `<T>(def) → PageDef<T>` | Define a page route |
+| `defineGroup` | `(def) → GroupDef` | Group routes under a prefix |
+| `defineLayout` | `(Component) → LayoutDef` | Wrap pages in a shared shell |
+| `defineApiRoute` | `(path, register) → ApiRouteDef` | Mount raw Hono sub-routes |
+| `compilePath` | `(path) → CompiledPath` | Compile a path pattern to a regex |
+| `matchPath` | `(compiled, pathname) → params \| null` | Match a compiled path |
+| `resolveRoutes` | `(routes, opts) → { pages, apis }` | Flatten a route tree |
 
-**Component hooks**
+**Constants:** `SPA_HEADER` · `STATE_KEY` · `PARAMS_KEY` · `SEO_KEY`
 
-| Symbol | Signature | Description |
+**Types:** `AppConfig` · `PageDef<T>` · `GroupDef` · `LayoutDef` · `ApiRouteDef` · `Route` · `PageProps<T>` · `LayoutProps` · `SEOMeta` · `HonoMiddleware` · `LoaderCtx` · `ClientMiddleware` · `ResolvedRoute` · `CompiledPath`
+
+---
+
+### `@netrojs/fnetro/server`
+
+**Functions:**
+
+| Export | Signature | Description |
 |---|---|---|
-| `use` | `<T>(source: Ref<T> \| (() => T)) → T` | Subscribe in JSX component |
-| `useLocalRef` | `<T>(init: T) → Ref<T>` | Component-scoped ref |
-| `useLocalReactive` | `<T>(init: T) → T` | Component-scoped reactive object |
+| `createFNetro` | `(config: FNetroOptions) → FNetroApp` | Build the Hono app |
+| `serve` | `(opts: ServeOptions) → Promise<void>` | Start server for Node/Bun/Deno |
+| `detectRuntime` | `() → Runtime` | Auto-detect the current JS runtime |
+| `fnetroVitePlugin` | `(opts?) → Plugin[]` | Vite plugin for dual build |
 
-**Route definitions**
+**`FNetroOptions`** (extends `AppConfig`):
 
-| Symbol | Description |
+```ts
+interface FNetroOptions {
+  layout?:     LayoutDef           // default layout for all pages
+  seo?:        SEOMeta             // global SEO defaults
+  middleware?: HonoMiddleware[]    // global Hono middleware
+  routes:      Route[]             // top-level routes
+  notFound?:   Component           // 404 component
+  htmlAttrs?:  Record<string,string> // attributes on <html>
+  head?:       string              // raw HTML appended to <head>
+  assets?:     AssetConfig         // production asset config
+}
+```
+
+**`AssetConfig`:**
+
+```ts
+interface AssetConfig {
+  scripts?:       string[]   // explicit script URLs
+  styles?:        string[]   // explicit stylesheet URLs
+  manifestDir?:   string     // directory containing manifest.json
+  manifestEntry?: string     // manifest key for client entry (default: 'client.ts')
+}
+```
+
+**`ServeOptions`:**
+
+```ts
+interface ServeOptions {
+  app:        FNetroApp
+  port?:      number          // default: process.env.PORT ?? 3000
+  hostname?:  string          // default: '0.0.0.0'
+  runtime?:   Runtime         // default: auto-detected
+  staticDir?: string          // default: './dist'
+}
+```
+
+**`FNetroPluginOptions`:**
+
+```ts
+interface FNetroPluginOptions {
+  serverEntry?:    string    // default: 'server.ts'
+  clientEntry?:    string    // default: 'client.ts'
+  serverOutDir?:   string    // default: 'dist/server'
+  clientOutDir?:   string    // default: 'dist/assets'
+  serverExternal?: string[]  // extra server-bundle externals
+  solidOptions?:   object    // passed to vite-plugin-solid
+}
+```
+
+---
+
+### `@netrojs/fnetro/client`
+
+**Functions:**
+
+| Export | Signature | Description |
+|---|---|---|
+| `boot` | `(opts: BootOptions) → Promise<void>` | Hydrate SSR and start SPA |
+| `navigate` | `(to, opts?) → Promise<void>` | Programmatic navigation |
+| `prefetch` | `(url) → void` | Warm loader cache |
+| `useClientMiddleware` | `(fn: ClientMiddleware) → void` | Register nav middleware |
+
+**`BootOptions`** (extends `AppConfig`):
+
+```ts
+interface BootOptions extends AppConfig {
+  prefetchOnHover?: boolean   // default: true
+}
+```
+
+**`NavigateOptions`:**
+
+```ts
+interface NavigateOptions {
+  replace?: boolean   // replaceState instead of pushState
+  scroll?:  boolean   // scroll to top after navigation (default: true)
+}
+```
+
+**`ClientMiddleware`:**
+
+```ts
+type ClientMiddleware = (
+  url:  string,
+  next: () => Promise<void>,
+) => Promise<void>
+```
+
+---
+
+## Monorepo development
+
+```bash
+# Clone and install
+git clone https://github.com/netrosolutions/fnetro.git
+cd fnetro
+npm install                  # hoists all workspace deps to root node_modules
+
+# Build both packages
+npm run build
+
+# Typecheck both packages
+npm run typecheck
+
+# Clean all dist/ directories
+npm run clean
+
+# Watch mode (fnetro package)
+npm run build:watch --workspace=packages/fnetro
+```
+
+### Workspace structure
+
+```
+fnetro/                           root (private monorepo)
+├── packages/
+│   ├── fnetro/                   @netrojs/fnetro
+│   │   ├── core.ts               Shared types, path matching, constants
+│   │   ├── server.ts             Hono factory, SSR renderer, Vite plugin, serve()
+│   │   ├── client.ts             SolidJS hydration, SPA router, client middleware
+│   │   └── tsup.config.ts        Build config (3 separate entry points)
+│   └── create-fnetro/            @netrojs/create-fnetro
+│       └── src/index.ts          CLI scaffolding tool
+├── .changeset/                   Changeset version files
+│   └── config.json
+└── .github/
+    └── workflows/
+        ├── ci.yml                Typecheck, build, scaffold smoke tests
+        └── release.yml           Changeset-driven versioning + npm publish
+```
+
+---
+
+## Publishing & releases
+
+This monorepo uses [Changesets](https://github.com/changesets/changesets) for versioning and publishing.
+
+### Day-to-day workflow
+
+**1. Make changes** to `packages/fnetro` and/or `packages/create-fnetro`.
+
+**2. Add a changeset** describing the change:
+```bash
+npm run changeset
+# → prompts you to select packages and bump type (patch/minor/major)
+# → writes a .changeset/*.md file — commit this with your changes
+```
+
+**3. Open a PR.** CI runs typecheck, build, and scaffold smoke tests on Node 18 / 20 / 22 / 24.
+
+**4. Merge to `main`.** The `release.yml` workflow runs automatically:
+- If `.changeset/*.md` files exist → opens / updates a **"Version Packages"** PR that bumps versions and updates `CHANGELOG.md`
+- If the "Version Packages" PR is merged → **publishes both packages to npm** with provenance attestation and creates a GitHub Release
+
+### Manual release
+
+```bash
+# Dry run — see what would be published
+npm run release:dry
+
+# Full release (build + changeset publish)
+npm run release
+```
+
+### Secrets required
+
+| Secret | Description |
 |---|---|
-| `definePage(def)` | Define a route |
-| `defineGroup(def)` | Nest routes with shared prefix/layout/middleware |
-| `defineLayout(Component)` | Create a layout |
-| `defineMiddleware(handler)` | Create a middleware |
-| `defineApiRoute(path, register)` | Mount raw Hono routes |
-
-### `fnetro/server`
-
-| Symbol | Description |
-|---|---|
-| `createFNetro(config)` | Assemble the Hono app → `FNetroApp` |
-| `serve(opts)` | Start the HTTP server (auto-detects runtime) |
-| `detectRuntime()` | Returns `'node' \| 'bun' \| 'deno' \| 'edge' \| 'unknown'` |
-| `fnetroVitePlugin(opts?)` | Vite plugin — produces server + client bundles |
-
-### `fnetro/client`
-
-| Symbol | Description |
-|---|---|
-| `boot(options)` | Mount the SPA — reads `__FNETRO_STATE__`, no refetch |
-| `navigate(to, opts?)` | Programmatic SPA navigation |
-| `prefetch(url)` | Warm the fetch cache for a URL |
-| `onBeforeNavigate(fn)` | Hook — runs before each navigation, can cancel |
-| `onAfterNavigate(fn)` | Hook — runs after each navigation + initial boot |
+| `NPM_TOKEN` | npm automation token (requires publish permission for `@netrojs`) |
+| `GITHUB_TOKEN` | Provided automatically by GitHub Actions |
 
 ---
 
 ## License
 
-MIT © [Netro Solutions](https://github.com/netrosolutions)
+MIT © [Netro Solutions](https://netrosolutions.com)
