@@ -1,10 +1,10 @@
 {
   "name": "@netrojs/fnetro",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Full-stack Hono framework — SSR, SPA, Vue-like reactivity, route groups, middleware and API routes",
   "type": "module",
   "license": "MIT",
-  "author": "MD Ashikur Rahman<info@netrosolutions.com>",
+  "author": "Netro Solutions<info@netrosolutions.com>",
   "homepage": "https://github.com/netrosolutions/fnetro",
   "repository": {
     "type": "git",

@@ -1191,4 +1191,4 @@ await serve({ app: fnetro, port: 3000, runtime: 'bun' })
 
 ## License
 
-MIT © [MD Ashikur Rahman](https://github.com/netrosolutions)
+MIT © [Netro Solutions](https://github.com/netrosolutions)

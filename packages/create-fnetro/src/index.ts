@@ -18,7 +18,7 @@ const CFG = {
   FNETRO_PKG: '@netrojs/fnetro',
 
   /** Scaffolded app's default fnetro dependency version */
-  FNETRO_VERSION: '^0.1.4',
+  FNETRO_VERSION: '^0.1.5',
 
   /** Hono peer dep version used in scaffolded apps */
   HONO_VERSION: '^4.12.8',
@@ -36,7 +36,7 @@ const CFG = {
   WRANGLER_VERSION: '^3.0.0',
 
   /** Docs / repo URL shown in CLI output and generated READMEs */
-  DOCS_URL: 'https://github.com/netrosolutions/fnetro',
+  DOCS_URL: 'https://github.com/netrojs/fnetro',
 
   /** Default port written into generated server entries */
   DEFAULT_PORT: 3000,
@@ -107,7 +107,10 @@ function pkg(subpath?: string): string {
 /**
  * app.ts — the shared FNetro app.
  * Used by @hono/vite-dev-server in dev mode AND imported by server.ts in production.
- * Exports `fnetro` (the FNetroApp instance) and `default` (the fetch handler).
+ *
+ * @hono/vite-dev-server imports this module and calls `mod.default.fetch(request)`.
+ * It expects the default export to be a Hono app INSTANCE (which has a .fetch method),
+ * NOT a bare function. So we export `fnetro.app` (the raw Hono instance), not `fnetro.handler`.
  */
 function genAppEntry(): string {
   return `import { createFNetro } from '${pkg('server')}'
@@ -126,9 +129,9 @@ fnetro.app.onError((err, c) => {
   return c.json({ error: err.message }, 500)
 })
 
-// Default export is the fetch handler — consumed by @hono/vite-dev-server in dev
-// and by server.ts / edge exports in production.
-export default fnetro.handler
+// @hono/vite-dev-server calls default.fetch(request) — must be a Hono instance.
+// DO NOT export fnetro.handler here (bare function has no .fetch property).
+export default fnetro.app
 `
 }
 
@@ -301,19 +304,19 @@ function genViteConfig(runtime: Runtime): string {
   // devServer(...) plugin config — only for non-edge runtimes
   const devServerPlugin: Record<Runtime, string> = {
     node: `devServer({
-      entry: 'app.ts',  // exports fnetro.handler as default
+      entry: 'app.ts',  // default export must be a Hono instance (fnetro.app, not fnetro.handler)
     }),`,
     bun: `devServer({
       adapter: bunAdapter,
-      entry: 'app.ts',  // exports fnetro.handler as default
+      entry: 'app.ts',  // default export must be a Hono instance (fnetro.app, not fnetro.handler)
     }),`,
     deno: `devServer({
       adapter: denoAdapter,
-      entry: 'app.ts',  // exports fnetro.handler as default
+      entry: 'app.ts',  // default export must be a Hono instance (fnetro.app, not fnetro.handler)
     }),`,
     cloudflare: ``,
     generic: `devServer({
-      entry: 'app.ts',  // exports fnetro.handler as default
+      entry: 'app.ts',  // default export must be a Hono instance (fnetro.app, not fnetro.handler)
     }),`,
   }
 

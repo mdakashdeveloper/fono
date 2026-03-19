@@ -329,15 +329,31 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
 
   let isServerBuild = true  // first pass = server
 
-  const sharedEsbuild = {
+  // JSX transform options.
+  // Vite 8 deprecated the `esbuild` transform option in favour of `oxc`.
+  // We set both so the plugin works with Vite 5 / 6 / 7 (esbuild) and Vite 8+ (oxc).
+  const jsxTransform = {
     jsx: 'automatic' as const,
     jsxImportSource: 'hono/jsx',
   }
 
-  // Common JSX transform for all .tsx files
+  // Common JSX transform plugin — applied to every build (server + client + dev).
+  // Vite ≤7 uses esbuild; Vite 8+ uses oxc (rolldown-based). We configure both.
+  // OxcOptions.jsx is NOT the same shape as esbuild's — it takes { runtime, importSource }
+  // instead of the string 'automatic'. Using the wrong shape emits a deprecation warning.
   const jsxPlugin: Plugin = {
     name: 'fnetro:jsx',
-    config: () => ({ esbuild: sharedEsbuild }),
+    config: () => ({
+      // Vite ≤7 (esbuild transform)
+      esbuild: jsxTransform,
+      // Vite 8+ (oxc / rolldown transform) — jsx property uses JsxOptions object shape
+      oxc: {
+        jsx: {
+          runtime: 'automatic',
+          importSource: 'hono/jsx',
+        },
+      } as any,  // `as any` because JsxOptions typing varies across Vite 8 patch releases
+    }),
   }
 
   // Server build plugin
@@ -366,7 +382,8 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
               serverExternal.includes(id),
           },
         },
-        esbuild: sharedEsbuild,
+        // Vite ≤7 fallback (oxc is set by jsxPlugin for Vite 8+)
+        esbuild: jsxTransform,
       }
     },
 
@@ -376,7 +393,8 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
       const { build } = await import('vite')
       await build({
         configFile: false,
-        esbuild: sharedEsbuild,
+        // Vite ≤7 fallback (oxc is set by jsxPlugin for Vite 8+)
+        esbuild: jsxTransform,
         build: {
           outDir: clientOutDir,
           lib: {
