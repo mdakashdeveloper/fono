@@ -1,9 +1,9 @@
-# fnetro
+# @netrojs/fnetro
 
 > Full-stack [Hono](https://hono.dev) framework powered by **SolidJS v1.9+** — SSR, SPA, SEO, server & client middleware, TypeScript-first.
 
-[![npm version](https://img.shields.io/npm/v/fnetro)](https://www.npmjs.com/package/fnetro)
-[![license](https://img.shields.io/npm/l/fnetro)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/@netrojs/fnetro)](https://www.npmjs.com/package/@netrojs/fnetro)
+[![license](https://img.shields.io/npm/l/@netrojs/fnetro)](./LICENSE)
 
 ---
 
@@ -36,7 +36,7 @@
 ## Quick start
 
 ```bash
-npm create fnetro@latest my-app
+npm create @netrojs/fnetro@latest my-app
 cd my-app
 npm install
 npm run dev
@@ -48,7 +48,7 @@ npm run dev
 
 ```bash
 # npm
-npm install fnetro solid-js hono
+npm install @netrojs/fnetro solid-js hono
 
 # Dev deps (build toolchain)
 npm install -D vite vite-plugin-solid @hono/vite-dev-server typescript
@@ -97,9 +97,9 @@ FNetro is built on three files:
 
 | File | Purpose |
 |---|---|
-| `fnetro` (core) | Route builders, SEO types, path matching utilities |
-| `fnetro/server` | Hono app factory, SSR renderer, Vite plugin, `serve()` |
-| `fnetro/client` | SolidJS hydration, SPA routing, client middleware |
+| `@netrojs/fnetro` (core) | Route builders, SEO types, path matching utilities |
+| `@netrojs/fnetro/server` | Hono app factory, SSR renderer, Vite plugin, `serve()` |
+| `@netrojs/fnetro/client` | SolidJS hydration, SPA routing, client middleware |
 
 **Data flow:**
 
@@ -124,7 +124,7 @@ Define a page with a path, optional loader, optional SEO, and a SolidJS componen
 
 ```tsx
 // app/routes/home.tsx
-import { definePage } from 'fnetro'
+import { definePage } from '@netrojs/fnetro'
 
 export default definePage({
   path: '/',
@@ -169,7 +169,7 @@ definePage({ path: '/files/[...rest]', ... })
 Group routes under a shared prefix, layout, and middleware.
 
 ```ts
-import { defineGroup } from 'fnetro'
+import { defineGroup } from '@netrojs/fnetro'
 import { requireAuth } from './middleware/auth'
 import { AdminLayout } from './layouts'
 import dashboard from './routes/admin/dashboard'
@@ -202,7 +202,7 @@ defineGroup({
 Create a shared layout component that wraps page content.
 
 ```tsx
-import { defineLayout } from 'fnetro'
+import { defineLayout } from '@netrojs/fnetro'
 import { createSignal } from 'solid-js'
 
 const [mobileOpen, setMobileOpen] = createSignal(false)
@@ -237,7 +237,7 @@ definePage({ path: '/embed', layout: false, Page: ... })
 Mount raw Hono routes at a path. Full Hono API available.
 
 ```ts
-import { defineApiRoute } from 'fnetro'
+import { defineApiRoute } from '@netrojs/fnetro'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 
@@ -403,7 +403,7 @@ definePage({
 Hono middleware applied at three levels:
 
 ```ts
-import { createFNetro } from 'fnetro/server'
+import { createFNetro } from '@netrojs/fnetro/server'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { bearerAuth } from 'hono/bearer-auth'
@@ -449,7 +449,7 @@ Client middleware runs before every **SPA navigation**. Register with `useClient
 
 ```ts
 // client.ts
-import { boot, useClientMiddleware, navigate } from 'fnetro/client'
+import { boot, useClientMiddleware, navigate } from '@netrojs/fnetro/client'
 
 // Analytics
 useClientMiddleware(async (url, next) => {
@@ -494,7 +494,7 @@ Use SolidJS primitives directly — no FNetro wrappers needed.
 ```tsx
 import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
-import { definePage } from 'fnetro'
+import { definePage } from '@netrojs/fnetro'
 
 // Module-level signals persist across SPA navigations
 const [count, setCount] = createSignal(0)
@@ -578,7 +578,7 @@ Any `<a href="...">` pointing to a registered route is intercepted automatically
 ### Programmatic navigation
 
 ```ts
-import { navigate } from 'fnetro/client'
+import { navigate } from '@netrojs/fnetro/client'
 
 // Push to history (default)
 await navigate('/about')
@@ -593,7 +593,7 @@ await navigate('/modal', { scroll: false })
 ### Prefetch
 
 ```ts
-import { prefetch } from 'fnetro/client'
+import { prefetch } from '@netrojs/fnetro/client'
 
 // On hover/focus — warms the loader cache
 prefetch('/about')
@@ -651,7 +651,7 @@ createFNetro({
 ## Multi-runtime `serve()`
 
 ```ts
-import { serve } from 'fnetro/server'
+import { serve } from '@netrojs/fnetro/server'
 
 // Auto-detects the runtime
 await serve({ app: fnetro })
@@ -681,7 +681,7 @@ export default { fetch: fnetro.handler }
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { fnetroVitePlugin } from 'fnetro/vite'
+import { fnetroVitePlugin } from '@netrojs/fnetro/vite'
 import devServer from '@hono/vite-dev-server'
 
 export default defineConfig({
@@ -746,7 +746,7 @@ dist/
 
 ## API reference
 
-### `fnetro` (core)
+### `@netrojs/fnetro` (core)
 
 | Export | Description |
 |---|---|
@@ -766,7 +766,7 @@ dist/
 
 ---
 
-### `fnetro/server`
+### `@netrojs/fnetro/server`
 
 | Export | Description |
 |---|---|
@@ -779,7 +779,7 @@ dist/
 
 ---
 
-### `fnetro/client`
+### `@netrojs/fnetro/client`
 
 | Export | Description |
 |---|---|

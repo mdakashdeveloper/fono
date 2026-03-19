@@ -1,5 +1,5 @@
 {
-  "name": "fnetro",
+  "name": "@netrojs/fnetro",
   "version": "0.2.0",
   "description": "Full-stack Hono framework — SolidJS SSR/SPA, SEO, middleware, route groups, API routes",
   "type": "module",

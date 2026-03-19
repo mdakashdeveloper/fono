@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────────
 //  create-fnetro · Interactive project scaffolding CLI
-//  npm create fnetro@latest [project-name]
+//  npm create @netrojs/fnetro@latest [project-name]
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { existsSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs'
@@ -15,7 +15,7 @@ import { bold, cyan, green, red, yellow, dim, magenta, blue } from 'kolorist'
 // ══════════════════════════════════════════════════════════════════════════════
 
 const CFG = {
-  FNETRO_PKG:         'fnetro',
+  FNETRO_PKG:         '@netrojs/fnetro',
   FNETRO_VERSION:     '^0.2.0',
   SOLID_VERSION:      '^1.9.11',
   HONO_VERSION:       '^4.12.8',
@@ -77,7 +77,7 @@ function write(filePath: string, content: string): void {
   writeFileSync(filePath, content, 'utf-8')
 }
 
-/** Build a package sub-path string, e.g. pkg('server') → 'fnetro/server' */
+/** Build a package sub-path string, e.g. pkg('server') → '@netrojs/fnetro/server' */
 function pkg(sub?: string): string {
   return sub ? `${CFG.FNETRO_PKG}/${sub}` : CFG.FNETRO_PKG
 }

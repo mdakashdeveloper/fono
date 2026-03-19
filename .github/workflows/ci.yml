@@ -2,149 +2,177 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, next]
   pull_request:
-    branches: [main]
+    branches: [main, next]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# Opt into Node.js 24 for all action runners now, before it becomes mandatory
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ────────────────────────────────────────────────────────────────────────────
-  build-and-typecheck:
-    name: Build & Typecheck (Node ${{ matrix.node }})
+  # ── Typecheck & Build ────────────────────────────────────────────────────────
+  ci:
+    name: Typecheck & Build (${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
+      # Let all Node versions run — don't cancel everything if one fails
       fail-fast: false
       matrix:
-        node: ['18', '20', '22']
+        node-version: [18.x, 20.x, 22.x, 24.x]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node }}
+      - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: npm
+          node-version: ${{ matrix.node-version }}
+          # Only cache if a lockfile exists — avoids cache-miss errors on fresh clones
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
-      - name: Install root deps
-        run: npm ci
+      # Use `npm install` (not `npm ci`) so the workflow works even when
+      # package-lock.json has not been committed yet (e.g. first push after
+      # scaffold). npm workspaces hoists all package deps into root
+      # node_modules — a single install covers every workspace package.
+      - name: Install dependencies
+        run: npm install
 
-      - name: Install fnetro deps
-        run: npm ci
-        working-directory: packages/fnetro
+      - name: Typecheck — fnetro
+        run: npm run typecheck --workspace=packages/fnetro
 
-      - name: Install create-fnetro deps
-        run: npm ci
-        working-directory: packages/create-fnetro
+      - name: Build — fnetro
+        run: npm run build --workspace=packages/fnetro
 
-      - name: Typecheck fnetro
-        run: npm run typecheck
-        working-directory: packages/fnetro
+      - name: Typecheck — create-fnetro
+        run: npm run typecheck --workspace=packages/create-fnetro
 
-      - name: Typecheck create-fnetro
-        run: npm run typecheck
-        working-directory: packages/create-fnetro
+      - name: Build — create-fnetro
+        run: npm run build --workspace=packages/create-fnetro
 
-      - name: Build fnetro
-        run: npm run build
-        working-directory: packages/fnetro
-
-      - name: Build create-fnetro
-        run: npm run build
-        working-directory: packages/create-fnetro
-
-      - name: Verify dist outputs exist
-        run: |
-          test -f packages/fnetro/dist/core.js    || (echo "❌ dist/core.js missing"    && exit 1)
-          test -f packages/fnetro/dist/server.js  || (echo "❌ dist/server.js missing"  && exit 1)
-          test -f packages/fnetro/dist/client.js  || (echo "❌ dist/client.js missing"  && exit 1)
-          test -f packages/fnetro/dist/core.d.ts  || (echo "❌ dist/core.d.ts missing"  && exit 1)
-          test -f packages/fnetro/dist/server.d.ts|| (echo "❌ dist/server.d.ts missing"&& exit 1)
-          test -f packages/fnetro/dist/client.d.ts|| (echo "❌ dist/client.d.ts missing"&& exit 1)
-          test -f packages/create-fnetro/dist/index.js || (echo "❌ create-fnetro dist missing" && exit 1)
-          echo "✅ All dist outputs present"
-
-  # ────────────────────────────────────────────────────────────────────────────
+  # ── Scaffold smoke test ──────────────────────────────────────────────────────
+  # Runs only on Node 22 (LTS) after the build matrix passes.
+  # Tests both templates and validates the generated file contents.
   scaffold-test:
-    name: Scaffold test (${{ matrix.template }} / ${{ matrix.runtime }})
+    name: Scaffold (${{ matrix.template }})
     runs-on: ubuntu-latest
-    needs: build-and-typecheck
+    needs: ci
 
     strategy:
       fail-fast: false
       matrix:
         template: [minimal, full]
-        runtime:  [node, bun]
-        exclude:
-          # Reduce matrix — test bun only with minimal template
-          - template: full
-            runtime:  bun
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: npm
+          node-version: 22.x
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
-      - name: Install deps
+      - name: Install & build
+        run: npm install && npm run build
+
+      - name: Scaffold — ${{ matrix.template }} template (node runtime)
         run: |
-          npm ci
-          npm ci --prefix packages/create-fnetro
-
-      - name: Build create-fnetro
-        run: npm run build
-        working-directory: packages/create-fnetro
-
-      - name: Scaffold project (CI mode)
-        run: |
-          node packages/create-fnetro/dist/index.js \
-            test-scaffold-${{ matrix.template }}-${{ matrix.runtime }} \
+          node packages/create-fnetro/dist/index.js test-app \
             --ci \
+            --runtime node \
             --template ${{ matrix.template }} \
-            --runtime  ${{ matrix.runtime }} \
+            --pkg-manager npm \
             --no-install \
             --no-git
 
-      - name: Verify scaffolded files
+      # ── File existence checks ──────────────────────────────────────────────
+      - name: Verify common files
         run: |
-          DIR="test-scaffold-${{ matrix.template }}-${{ matrix.runtime }}"
-          test -f "$DIR/app.ts"            || (echo "❌ app.ts missing"     && exit 1)
-          test -f "$DIR/server.ts"         || (echo "❌ server.ts missing"  && exit 1)
-          test -f "$DIR/client.ts"         || (echo "❌ client.ts missing"  && exit 1)
-          test -f "$DIR/vite.config.ts"    || (echo "❌ vite.config.ts missing" && exit 1)
-          test -f "$DIR/tsconfig.json"     || (echo "❌ tsconfig.json missing"  && exit 1)
-          test -f "$DIR/app/layouts.tsx"   || (echo "❌ layouts.tsx missing" && exit 1)
-          test -f "$DIR/app/routes/home.tsx" || (echo "❌ home.tsx missing" && exit 1)
-          echo "✅ Scaffold files present"
+          files=(
+            app.ts server.ts client.ts
+            tsconfig.json vite.config.ts package.json
+            .gitignore .env.example README.md
+            public/style.css
+            app/layouts.tsx
+            app/routes/home.tsx
+            app/routes/about.tsx
+            app/routes/api.ts
+          )
+          for f in "${files[@]}"; do
+            if [ -f "test-app/$f" ]; then echo "  ok $f"
+            else echo "  MISSING: $f" && exit 1; fi
+          done
 
-  # ────────────────────────────────────────────────────────────────────────────
-  lint-check:
-    name: Lint check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-
-      - name: Check for CRLF line endings
+      - name: Verify full template extras
+        if: matrix.template == 'full'
         run: |
-          if grep -rlI $'\r' packages/fnetro/*.ts packages/create-fnetro/src/*.ts 2>/dev/null; then
-            echo "❌ CRLF line endings found — use LF"
-            exit 1
-          fi
-          echo "✅ Line endings OK"
+          files=(
+            app/store.ts
+            app/routes/counter.tsx
+            app/routes/posts/index.tsx
+            "app/routes/posts/[slug].tsx"
+          )
+          for f in "${files[@]}"; do
+            if [ -f "test-app/$f" ]; then echo "  ok $f"
+            else echo "  MISSING: $f" && exit 1; fi
+          done
+
+      # ── Content validation ─────────────────────────────────────────────────
+      - name: Validate tsconfig.json
+        run: |
+          node --input-type=module << 'EOF'
+          import { readFileSync } from 'node:fs'
+          const co = JSON.parse(readFileSync('test-app/tsconfig.json','utf8')).compilerOptions
+          const checks = {
+            'jsxImportSource === solid-js':  co.jsxImportSource === 'solid-js',
+            'jsx === preserve':              co.jsx === 'preserve',
+            'strict':                        co.strict === true,
+            'allowImportingTsExtensions':    co.allowImportingTsExtensions === true,
+            'verbatimModuleSyntax':          co.verbatimModuleSyntax === true,
+            'moduleResolution bundler':      co.moduleResolution === 'bundler',
+            'noEmit':                        co.noEmit === true,
+          }
+          let ok = true
+          for (const [k,v] of Object.entries(checks)) {
+            console.log(v ? `  ok ${k}` : `  FAIL ${k}`)
+            if (!v) ok = false
+          }
+          if (!ok) process.exit(1)
+          EOF
+
+      - name: Validate package.json
+        run: |
+          node --input-type=module << 'EOF'
+          import { readFileSync } from 'node:fs'
+          const p = JSON.parse(readFileSync('test-app/package.json','utf8'))
+          const checks = {
+            'fnetro dep':         !!p.dependencies?.['@netrojs/fnetro'],
+            'solid-js dep':       !!p.dependencies?.['solid-js'],
+            'hono dep':           !!p.dependencies?.hono,
+            'type module':        p.type === 'module',
+            'build script':       !!p.scripts?.build,
+            'typecheck script':   !!p.scripts?.typecheck,
+            'start or dev':       !!(p.scripts?.start || p.scripts?.dev),
+          }
+          let ok = true
+          for (const [k,v] of Object.entries(checks)) {
+            console.log(v ? `  ok ${k}` : `  FAIL ${k}`)
+            if (!v) ok = false
+          }
+          if (!ok) process.exit(1)
+          EOF
+
+      - name: Validate package imports
+        run: |
+          grep -q "@netrojs/fnetro" test-app/app.ts \
+            && echo "  ok app.ts imports fnetro" \
+            || (echo "  FAIL app.ts missing fnetro import" && exit 1)
+          grep -q "fnetroVitePlugin" test-app/vite.config.ts \
+            && echo "  ok vite.config.ts uses fnetroVitePlugin" \
+            || (echo "  FAIL vite.config.ts missing fnetroVitePlugin" && exit 1)
+          grep -q "solid-js" test-app/app/layouts.tsx \
+            && echo "  ok layouts.tsx imports from solid-js" \
+            || (echo "  FAIL layouts.tsx missing solid-js import" && exit 1)

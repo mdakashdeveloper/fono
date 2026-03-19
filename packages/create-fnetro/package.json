@@ -1,7 +1,7 @@
 {
-  "name": "create-fnetro",
+  "name": "@netrojs/create-fnetro",
   "version": "0.2.0",
-  "description": "Create a new FNetro (SolidJS + Hono) project",
+  "description": "Create a new FNetro app — SolidJS SSR + SPA full-stack Hono framework",
   "type": "module",
   "license": "MIT",
   "author": "Netro Solutions<info@netrosolutions.com>",
@@ -14,27 +14,31 @@
   "bugs": {
     "url": "https://github.com/netrosolutions/fnetro/issues"
   },
-  "keywords": ["create-fnetro", "fnetro", "hono", "solidjs", "scaffold", "cli"],
+  "keywords": ["create-fnetro", "fnetro", "hono", "solidjs", "fullstack", "ssr", "spa"],
   "bin": {
     "create-fnetro": "./dist/index.js"
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build":          "tsup src/index.ts --format esm --dts --outDir dist --target node18 --banner.js '#!/usr/bin/env node'",
-    "build:watch":    "tsup src/index.ts --format esm --outDir dist --watch",
-    "typecheck":      "tsc --noEmit",
-    "clean":          "rimraf dist",
-    "prepublishOnly": "npm run clean && npm run build && npm run typecheck"
+    "build":     "tsup src/index.ts --format esm --target node18 --dts --clean",
+    "dev":       "tsup src/index.ts --format esm --target node18 --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "kolorist": "^1.8.0",
-    "prompts": "^2.4.2"
+    "prompts":  "^2.4.2"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node":    "^25.5.0",
     "@types/prompts": "^2.4.9",
-    "rimraf": "^6.0.1",
-    "tsup": "^8.5.1",
-    "typescript": "^5.7.0"
+    "tsup":           "^8.5.1",
+    "typescript":     "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

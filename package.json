@@ -6,11 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build":     "npm run build -w packages/fnetro && npm run build -w packages/create-fnetro",
-    "typecheck": "npm run typecheck -w packages/fnetro && npm run typecheck -w packages/create-fnetro",
-    "clean":     "npm run clean -w packages/fnetro && npm run clean -w packages/create-fnetro"
+    "build":     "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "clean":     "npm run clean --workspaces --if-present",
+    "release":   "npm run build && changeset publish"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@changesets/cli": "^2.30.0"
   }
 }

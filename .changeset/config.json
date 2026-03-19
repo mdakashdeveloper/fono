@@ -3,7 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [["fnetro", "create-fnetro"]],
+  "linked": [["@netrojs/fnetro", "@netrojs/create-fnetro"]],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

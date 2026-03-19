@@ -3,19 +3,19 @@
 > Full-stack [Hono](https://hono.dev) framework powered by **SolidJS v1.9+** — SSR, SPA, SEO, server & client middleware, Vite, TypeScript-first.
 
 [![CI](https://github.com/netrosolutions/fnetro/actions/workflows/ci.yml/badge.svg)](https://github.com/netrosolutions/fnetro/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/fnetro)](https://www.npmjs.com/package/fnetro)
+[![npm](https://img.shields.io/npm/v/@netrojs/fnetro)](https://www.npmjs.com/package/@netrojs/fnetro)
 
 ## Packages
 
 | Package | Version | Description |
 |---|---|---|
-| [`fnetro`](./packages/fnetro) | ![npm](https://img.shields.io/npm/v/fnetro) | Core framework — SSR, SPA, routing, SEO, middleware |
+| [`@netrojs/fnetro`](./packages/fnetro) | ![npm](https://img.shields.io/npm/v/@netrojs/fnetro) | Core framework — SSR, SPA, routing, SEO, middleware |
 | [`create-fnetro`](./packages/create-fnetro) | ![npm](https://img.shields.io/npm/v/create-fnetro) | Project scaffolding CLI |
 
 ## Quick start
 
 ```bash
-npm create fnetro@latest my-app
+npm create @netrojs/fnetro@latest my-app
 ```
 
 ## What's new in v0.2
@@ -32,7 +32,7 @@ npm create fnetro@latest my-app
 
 ```
 packages/
-├── fnetro/           fnetro
+├── fnetro/           @netrojs/fnetro
 │   ├── core.ts       Types, route builders, path matching, constants
 │   ├── server.ts     Hono factory, SolidJS SSR, Vite plugin, serve()
 │   └── client.ts     SolidJS hydration, SPA routing, client middleware
@@ -66,7 +66,7 @@ git push origin v0.2.1
 The [`publish.yml`](.github/workflows/publish.yml) workflow:
 1. Validates tag matches both `package.json` versions
 2. Builds and typechecks both packages
-3. Publishes `fnetro` then `create-fnetro` to npm (with provenance)
+3. Publishes `@netrojs/fnetro` then `create-fnetro` to npm (with provenance)
 4. Creates a GitHub Release
 
 ## License

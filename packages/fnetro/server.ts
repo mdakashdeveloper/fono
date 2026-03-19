@@ -12,8 +12,6 @@ import {
   type AppConfig, type ResolvedRoute, type LayoutDef,
   type SEOMeta, type HonoMiddleware,
 } from './core'
-// vite-plugin-solid is a peer dep — marked external in tsup.
-// At runtime it resolves from the user's node_modules.
 import type { Plugin, UserConfig, ConfigEnv, InlineConfig } from 'vite'
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -33,61 +31,58 @@ function esc(s: string): string {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function buildHeadMeta(seo: SEOMeta, extraHead = ''): string {
-  const name = (n: string, v?: string) =>
-    v ? `<meta name="${n}" content="${esc(v)}">` : ''
-  const prop = (p: string, v?: string) =>
-    v ? `<meta property="${p}" content="${esc(v)}">` : ''
-  const link = (rel: string, href: string) =>
-    `<link rel="${rel}" href="${esc(href)}">`
+  const m  = (n: string, v?: string)  => v ? `<meta name="${n}" content="${esc(v)}">` : ''
+  const p  = (pr: string, v?: string) => v ? `<meta property="${pr}" content="${esc(v)}">` : ''
+  const lk = (rel: string, href: string) => `<link rel="${rel}" href="${esc(href)}">`
 
   const parts: string[] = []
 
   // Basic
-  if (seo.description) parts.push(name('description', seo.description))
-  if (seo.keywords)    parts.push(name('keywords',    seo.keywords))
-  if (seo.author)      parts.push(name('author',       seo.author))
-  if (seo.robots)      parts.push(name('robots',       seo.robots))
-  if (seo.themeColor)  parts.push(name('theme-color',  seo.themeColor))
-  if (seo.canonical)   parts.push(link('canonical',    seo.canonical))
+  if (seo.description) parts.push(m('description', seo.description))
+  if (seo.keywords)    parts.push(m('keywords',    seo.keywords))
+  if (seo.author)      parts.push(m('author',       seo.author))
+  if (seo.robots)      parts.push(m('robots',       seo.robots))
+  if (seo.themeColor)  parts.push(m('theme-color',  seo.themeColor))
+  if (seo.canonical)   parts.push(lk('canonical',   seo.canonical))
 
   // Open Graph
-  if (seo.ogTitle)       parts.push(prop('og:title',       seo.ogTitle))
-  if (seo.ogDescription) parts.push(prop('og:description', seo.ogDescription))
-  if (seo.ogImage)       parts.push(prop('og:image',       seo.ogImage))
-  if (seo.ogImageAlt)    parts.push(prop('og:image:alt',   seo.ogImageAlt))
-  if (seo.ogImageWidth)  parts.push(prop('og:image:width', seo.ogImageWidth))
-  if (seo.ogImageHeight) parts.push(prop('og:image:height',seo.ogImageHeight))
-  if (seo.ogUrl)         parts.push(prop('og:url',         seo.ogUrl))
-  if (seo.ogType)        parts.push(prop('og:type',        seo.ogType))
-  if (seo.ogSiteName)    parts.push(prop('og:site_name',   seo.ogSiteName))
-  if (seo.ogLocale)      parts.push(prop('og:locale',      seo.ogLocale))
+  if (seo.ogTitle)        parts.push(p('og:title',        seo.ogTitle))
+  if (seo.ogDescription)  parts.push(p('og:description',  seo.ogDescription))
+  if (seo.ogImage)        parts.push(p('og:image',        seo.ogImage))
+  if (seo.ogImageAlt)     parts.push(p('og:image:alt',    seo.ogImageAlt))
+  if (seo.ogImageWidth)   parts.push(p('og:image:width',  seo.ogImageWidth))
+  if (seo.ogImageHeight)  parts.push(p('og:image:height', seo.ogImageHeight))
+  if (seo.ogUrl)          parts.push(p('og:url',          seo.ogUrl))
+  if (seo.ogType)         parts.push(p('og:type',         seo.ogType))
+  if (seo.ogSiteName)     parts.push(p('og:site_name',    seo.ogSiteName))
+  if (seo.ogLocale)       parts.push(p('og:locale',       seo.ogLocale))
 
   // Twitter / X
-  if (seo.twitterCard)        parts.push(name('twitter:card',        seo.twitterCard))
-  if (seo.twitterSite)        parts.push(name('twitter:site',        seo.twitterSite))
-  if (seo.twitterCreator)     parts.push(name('twitter:creator',     seo.twitterCreator))
-  if (seo.twitterTitle)       parts.push(name('twitter:title',       seo.twitterTitle))
-  if (seo.twitterDescription) parts.push(name('twitter:description', seo.twitterDescription))
-  if (seo.twitterImage)       parts.push(name('twitter:image',       seo.twitterImage))
-  if (seo.twitterImageAlt)    parts.push(name('twitter:image:alt',   seo.twitterImageAlt))
+  if (seo.twitterCard)         parts.push(m('twitter:card',        seo.twitterCard))
+  if (seo.twitterSite)         parts.push(m('twitter:site',        seo.twitterSite))
+  if (seo.twitterCreator)      parts.push(m('twitter:creator',     seo.twitterCreator))
+  if (seo.twitterTitle)        parts.push(m('twitter:title',       seo.twitterTitle))
+  if (seo.twitterDescription)  parts.push(m('twitter:description', seo.twitterDescription))
+  if (seo.twitterImage)        parts.push(m('twitter:image',       seo.twitterImage))
+  if (seo.twitterImageAlt)     parts.push(m('twitter:image:alt',   seo.twitterImageAlt))
 
-  // Extra arbitrary tags
-  for (const m of seo.extra ?? []) {
+  // Arbitrary extra <meta> tags
+  for (const tag of seo.extra ?? []) {
     const attrs = [
-      m.name      ? `name="${esc(m.name)}"` : '',
-      m.property  ? `property="${esc(m.property)}"` : '',
-      m.httpEquiv ? `http-equiv="${esc(m.httpEquiv)}"` : '',
-      `content="${esc(m.content)}"`,
+      tag.name      ? `name="${esc(tag.name)}"` : '',
+      tag.property  ? `property="${esc(tag.property)}"` : '',
+      tag.httpEquiv ? `http-equiv="${esc(tag.httpEquiv)}"` : '',
+      `content="${esc(tag.content)}"`,
     ].filter(Boolean).join(' ')
     parts.push(`<meta ${attrs}>`)
   }
 
-  // JSON-LD
+  // JSON-LD structured data
   const ld = seo.jsonLd
   if (ld) {
     const schemas = Array.isArray(ld) ? ld : [ld]
-    for (const s of schemas) {
-      parts.push(`<script type="application/ld+json">${JSON.stringify(s)}</script>`)
+    for (const schema of schemas) {
+      parts.push(`<script type="application/ld+json">${JSON.stringify(schema)}</script>`)
     }
   }
 
@@ -104,43 +99,54 @@ function mergeSEO(base: SEOMeta | undefined, override: SEOMeta | undefined): SEO
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface AssetConfig {
-  /** Explicit script URLs to inject. */
-  scripts?: string[]
-  /** Explicit stylesheet URLs to inject. */
-  styles?:  string[]
+  /** Explicit script URLs injected into every HTML page. */
+  scripts?:       string[]
+  /** Explicit stylesheet URLs injected into every HTML page. */
+  styles?:        string[]
   /**
-   * Directory containing the Vite manifest (`manifest.json`).
-   * When set, filenames are resolved from the manifest (hashed filenames).
-   * Typically the same as `clientOutDir`.
+   * Directory that contains the Vite-generated `manifest.json`.
+   * When provided, asset URLs are resolved from the manifest so hashed
+   * filenames work correctly.  Typically equals `clientOutDir`.
    */
   manifestDir?:   string
-  /** Key in the manifest corresponding to the client entry.  Defaults to `'client.ts'`. */
+  /**
+   * Key in the manifest corresponding to the client entry file.
+   * @default `'client.ts'`
+   */
   manifestEntry?: string
 }
 
 interface ResolvedAssets { scripts: string[]; styles: string[] }
 
+// Process-lifetime cache — resolved once on first request.
 let _assets: ResolvedAssets | null = null
 
-function resolveAssets(cfg: AssetConfig, defaultEntry: string): ResolvedAssets {
+/**
+ * Read the Vite manifest to resolve hashed asset filenames.
+ * Uses dynamic `import()` so this never runs at module-load time and
+ * never adds a hard dependency on `node:fs` for edge runtimes.
+ * Falls back to explicit `cfg.scripts` / `cfg.styles` on any error.
+ */
+async function resolveAssets(
+  cfg:          AssetConfig,
+  defaultEntry: string,
+): Promise<ResolvedAssets> {
   if (_assets) return _assets
 
   if (cfg.manifestDir) {
     try {
-      // Node/Bun only — edge runtimes should use explicit `scripts`/`styles`.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { readFileSync } = require('node:fs')
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { join } = require('node:path')
-      const manifest = JSON.parse(
-        readFileSync(join(cfg.manifestDir, 'manifest.json'), 'utf-8'),
-      ) as Record<string, { file: string; css?: string[] }>
-
+      // Dynamic imports — safe to use in any ESM environment.
+      // node:fs and node:path are marked external by tsup and never bundled.
+      const [{ readFileSync }, { join }] = await Promise.all([
+        import('node:fs'),
+        import('node:path'),
+      ])
+      const raw      = readFileSync(join(cfg.manifestDir, 'manifest.json'), 'utf-8')
+      const manifest = JSON.parse(raw) as Record<string, { file: string; css?: string[] }>
       const entryKey =
         cfg.manifestEntry ??
         Object.keys(manifest).find(k => k.endsWith(defaultEntry)) ??
         defaultEntry
-
       const entry = manifest[entryKey]
       if (entry) {
         _assets = {
@@ -149,7 +155,7 @@ function resolveAssets(cfg: AssetConfig, defaultEntry: string): ResolvedAssets {
         }
         return _assets
       }
-    } catch { /* fall through */ }
+    } catch { /* edge runtime or manifest not found — fall through */ }
   }
 
   _assets = {
@@ -188,30 +194,27 @@ function buildShell(o: ShellOpts): string {
     .map(src => `<script type="module" src="${esc(src)}"></script>`)
     .join('\n')
 
-  // generateHydrationScript() returns a <script> tag string
-  const hydrationScript = generateHydrationScript()
-
   return [
-    `<!DOCTYPE html>`,
+    '<!DOCTYPE html>',
     `<html ${htmlAttrStr}>`,
-    `<head>`,
-    `<meta charset="UTF-8">`,
-    `<meta name="viewport" content="width=device-width,initial-scale=1">`,
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
     `<title>${esc(o.title)}</title>`,
     o.metaHtml,
-    hydrationScript,
+    generateHydrationScript(),
     styleLinks,
-    `</head>`,
-    `<body>`,
+    '</head>',
+    '<body>',
     `<div id="fnetro-app">${o.bodyHtml}</div>`,
-    `<script>`,
+    '<script>',
     `window.${STATE_KEY}=${o.stateJson};`,
     `window.${PARAMS_KEY}=${o.paramsJson};`,
     `window.${SEO_KEY}=${o.seoJson};`,
-    `</script>`,
+    '</script>',
     scriptTags,
-    `</body>`,
-    `</html>`,
+    '</body>',
+    '</html>',
   ]
     .filter(Boolean)
     .join('\n')
@@ -220,6 +223,8 @@ function buildShell(o: ShellOpts): string {
 // ══════════════════════════════════════════════════════════════════════════════
 //  § 5  SolidJS SSR renderer
 // ══════════════════════════════════════════════════════════════════════════════
+
+type AnyComponent = Parameters<typeof createComponent>[0]
 
 async function renderPage(
   route:     ResolvedRoute,
@@ -231,10 +236,10 @@ async function renderPage(
   const layout = route.layout !== undefined ? route.layout : appLayout
 
   return renderToStringAsync(() => {
-    const pageEl = createComponent(route.page.Page as any, { ...data, url, params })
+    const pageEl = createComponent(route.page.Page as AnyComponent, { ...data, url, params })
     if (!layout) return pageEl as any
 
-    return createComponent(layout.Component as any, {
+    return createComponent(layout.Component as AnyComponent, {
       url,
       params,
       get children() { return pageEl },
@@ -278,13 +283,13 @@ async function renderFullPage(
 export interface FNetroOptions extends AppConfig {
   /**
    * Production asset configuration.
-   * In dev mode `@hono/vite-dev-server` injects assets — this is ignored.
+   * In dev mode `@hono/vite-dev-server` injects assets automatically — ignored.
    */
   assets?: AssetConfig
 }
 
 export interface FNetroApp {
-  /** The Hono instance — attach custom routes, error handlers, etc. */
+  /** The underlying Hono instance — attach custom routes, error handlers, etc. */
   app:     Hono
   /** Fetch handler for edge runtimes */
   handler: typeof Hono.prototype.fetch
@@ -304,7 +309,7 @@ export function createFNetro(config: FNetroOptions): FNetroApp {
   // Pre-compile all route paths
   const compiled = pages.map(r => ({ route: r, cp: compilePath(r.fullPath) }))
 
-  // Register API sub-apps
+  // Register API sub-apps before the catch-all page handler
   for (const api of apis) {
     const sub = new Hono()
     api.register(sub, config.middleware ?? [])
@@ -327,8 +332,8 @@ export function createFNetro(config: FNetroOptions): FNetroApp {
 
     if (!matched) {
       if (config.notFound) {
-        const html = await renderToStringAsync(() =>
-          createComponent(config.notFound as any, {}) as any,
+        const html = await renderToStringAsync(
+          () => createComponent(config.notFound as AnyComponent, {}) as any,
         )
         return c.html(
           `<!DOCTYPE html><html lang="en"><body>${html}</body></html>`,
@@ -340,14 +345,14 @@ export function createFNetro(config: FNetroOptions): FNetroApp {
 
     const { route, params } = matched
 
-    // Expose params through c.req.param()
-    const _origParam = c.req.param.bind(c.req);
+    // Expose dynamic params through c.req.param()
+    const origParam = c.req.param.bind(c.req);
     (c.req as any)['param'] = (key?: string) =>
       key != null
-        ? (params[key] ?? _origParam(key))
-        : { ..._origParam(), ...params }
+        ? (params[key] ?? origParam(key))
+        : { ...origParam(), ...params }
 
-    // Run route-level middleware chain
+    // Route-level middleware chain (Hono onion model)
     let early: Response | undefined
     const handlers = [...route.middleware]
     let idx = 0
@@ -360,11 +365,12 @@ export function createFNetro(config: FNetroOptions): FNetroApp {
     await runNext()
     if (early) return early
 
-    // Run data loader
-    const rawData  = route.page.loader ? await route.page.loader(c) : {}
-    const data     = (rawData ?? {}) as object
+    // Run loader
+    const rawData = route.page.loader ? await route.page.loader(c) : {}
+    const data    = (rawData ?? {}) as object
 
     if (isSPA) {
+      // SPA navigation — return JSON payload only
       const pageSEO = typeof route.page.seo === 'function'
         ? route.page.seo(data as any, params)
         : route.page.seo
@@ -376,10 +382,10 @@ export function createFNetro(config: FNetroOptions): FNetroApp {
       })
     }
 
-    // Full SSR — resolve assets once per process lifetime
+    // Full SSR — assets resolved once per process lifetime
     const assets = isDev
       ? { scripts: [], styles: [] }  // Vite dev server injects assets
-      : resolveAssets(
+      : await resolveAssets(
           config.assets ?? {},
           config.assets?.manifestEntry ?? 'client.ts',
         )
@@ -409,16 +415,17 @@ export interface ServeOptions {
   port?:      number
   hostname?:  string
   runtime?:   Runtime
-  /** Root directory for static file serving.  @default './dist' */
+  /** Root directory for static file serving.  @default `'./dist'` */
   staticDir?: string
 }
 
 export async function serve(opts: ServeOptions): Promise<void> {
-  const runtime  = opts.runtime ?? detectRuntime()
-  const port     = opts.port ?? Number(process?.env?.['PORT'] ?? 3000)
-  const hostname = opts.hostname ?? '0.0.0.0'
-  const staticDir = opts.staticDir ?? './dist'
+  const runtime     = opts.runtime ?? detectRuntime()
+  const port        = opts.port ?? Number(process?.env?.['PORT'] ?? 3000)
+  const hostname    = opts.hostname ?? '0.0.0.0'
+  const staticDir   = opts.staticDir ?? './dist'
   const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname
+
   const logReady = () =>
     console.log(`\n🔥  FNetro [${runtime}] ready → http://${displayHost}:${port}\n`)
 
@@ -428,7 +435,6 @@ export async function serve(opts: ServeOptions): Promise<void> {
         import('@hono/node-server'),
         import('@hono/node-server/serve-static'),
       ])
-      // Serve built client assets and public/ directory
       opts.app.app.use('/assets/*', serveStatic({ root: staticDir }))
       opts.app.app.use('/*',        serveStatic({ root: './public' }))
       nodeServe({ fetch: opts.app.handler, port, hostname })
@@ -460,55 +466,40 @@ const NODE_BUILTINS =
   /^node:|^(assert|buffer|child_process|cluster|crypto|dgram|dns|domain|events|fs|http|https|module|net|os|path|perf_hooks|process|punycode|querystring|readline|repl|stream|string_decoder|sys|timers|tls|trace_events|tty|url|util|v8|vm|worker_threads|zlib)$/
 
 export interface FNetroPluginOptions {
-  /** Server entry file.  @default `'app/server.ts'` */
+  /** Server entry file.   @default `'server.ts'` */
   serverEntry?:    string
-  /** Client entry file.  @default `'client.ts'` */
+  /** Client entry file.   @default `'client.ts'` */
   clientEntry?:    string
-  /** Server bundle output directory.  @default `'dist/server'` */
+  /** Server bundle output directory.   @default `'dist/server'` */
   serverOutDir?:   string
-  /** Client assets output directory.  @default `'dist/assets'` */
+  /** Client assets output directory.   @default `'dist/assets'` */
   clientOutDir?:   string
-  /** Additional packages to mark external in the server bundle. */
+  /** Extra packages to mark external in the server bundle. */
   serverExternal?: string[]
   /** Extra options forwarded to `vite-plugin-solid`. */
   solidOptions?:   Record<string, unknown>
 }
 
-/**
- * Load vite-plugin-solid at call time.
- * Throws a clear error if the peer dep is not installed.
- */
-async function loadSolid(): Promise<(opts?: Record<string, unknown>) => Plugin | Plugin[]> {
+type SolidFactory = (opts?: Record<string, unknown>) => Plugin | Plugin[]
+
+async function loadSolid(): Promise<SolidFactory> {
   try {
     const mod = await import('vite-plugin-solid' as string)
-    return (mod.default ?? mod) as (opts?: Record<string, unknown>) => Plugin | Plugin[]
+    return (mod.default ?? mod) as SolidFactory
   } catch {
     throw new Error(
-      '[fnetro] vite-plugin-solid is required. Install it:\n  npm i -D vite-plugin-solid',
+      '[fnetro] vite-plugin-solid is required.\n  Install it: npm i -D vite-plugin-solid',
     )
   }
 }
 
-function flatPlugins(result: Plugin | Plugin[]): Plugin[] {
-  return Array.isArray(result) ? result : [result]
+function toPlugins(v: Plugin | Plugin[]): Plugin[] {
+  return Array.isArray(v) ? v : [v]
 }
 
-/**
- * FNetro Vite plugin.
- *
- * Handles:
- * - JSX transform (vite-plugin-solid, SSR-aware)
- * - Server SSR build
- * - Client bundle build (with `manifest.json` for hashed asset URLs)
- *
- * @example
- * // vite.config.ts
- * import { fnetroVitePlugin } from 'fnetro/vite'
- * export default defineConfig({ plugins: [fnetroVitePlugin()] })
- */
 export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
   const {
-    serverEntry  = 'app/server.ts',
+    serverEntry  = 'server.ts',
     clientEntry  = 'client.ts',
     serverOutDir = 'dist/server',
     clientOutDir = 'dist/assets',
@@ -516,33 +507,16 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
     solidOptions   = {},
   } = opts
 
-  // ── Solid JSX plugin (SSR mode) — applies to main (server) build ──────────
-  // We create it lazily inside configResolved so we can use async loading.
-  // For the dev server build Vite merges all plugins, so we return it directly.
-
+  let _solid: SolidFactory | null = null
   let _solidPlugins: Plugin[] = []
 
-  const solidSetupPlugin: Plugin = {
-    name:    'fnetro:solid-setup',
+  // ── Plugin 1: JSX config + lazy solid plugin load ─────────────────────────
+  const jsxPlugin: Plugin = {
+    name:    'fnetro:jsx',
     enforce: 'pre',
 
-    async buildStart() {
-      if (_solidPlugins.length === 0) {
-        const solid = await loadSolid()
-        _solidPlugins = flatPlugins(solid({ ssr: true, ...solidOptions }))
-      }
-    },
-  }
-
-  // ── Dev server JSX setup ─────────────────────────────────────────────────
-  // We expose a synchronous plugin that delegates to the loaded solid plugin
-  // hooks so that the dev server gets JSX transforms.
-  const solidJsxPlugin: Plugin = {
-    name:    'fnetro:solid-jsx',
-    enforce: 'pre',
-
-    config(cfg: UserConfig, _env: ConfigEnv): Omit<UserConfig, 'plugins'> | null {
-      // Tell Vite to use SolidJS JSX via esbuild (works in dev and legacy build)
+    // Sync config hook — must return Omit<UserConfig, 'plugins'> | null
+    config(_cfg: UserConfig, _env: ConfigEnv): Omit<UserConfig, 'plugins'> | null {
       return {
         esbuild: {
           jsx:             'automatic',
@@ -551,43 +525,52 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
       }
     },
 
-    resolveId: {
-      order:   'pre',
-      handler(id, importer, options) {
-        const hook = _solidPlugins[0]?.resolveId
-        if (!hook) return null
-        const handler = typeof hook === 'function' ? hook : hook.handler
-        return handler.call(this as any, id, importer, options)
-      },
-    },
-
-    load: {
-      order:   'pre',
-      handler(id, options) {
-        const hook = _solidPlugins[0]?.load
-        if (!hook) return null
-        const handler = typeof hook === 'function' ? hook : hook.handler
-        return handler.call(this as any, id, options)
-      },
-    },
-
-    transform: {
-      order:   'pre',
-      handler(code, id, options) {
-        const hook = _solidPlugins[0]?.transform
-        if (!hook) return null
-        const handler = typeof hook === 'function' ? hook : hook.handler
-        return handler.call(this as any, code, id, options)
-      },
+    async buildStart() {
+      if (!_solid) {
+        _solid = await loadSolid()
+        // ssr: true tells vite-plugin-solid to output hydratable markup
+        _solidPlugins = toPlugins(_solid({ ssr: true, ...solidOptions }))
+      }
     },
   }
 
-  // ── Server (SSR) build plugin ─────────────────────────────────────────────
-  const serverBuildPlugin: Plugin = {
-    name:    'fnetro:server-build',
+  // ── Plugin 2: proxy solid transform hooks ────────────────────────────────
+  const solidProxy: Plugin = {
+    name:    'fnetro:solid-proxy',
+    enforce: 'pre',
+
+    async transform(code: string, id: string, options?: { ssr?: boolean }) {
+      if (!_solidPlugins[0]?.transform) return null
+      const hook = _solidPlugins[0].transform
+      const fn   = typeof hook === 'function' ? hook : (hook as any).handler
+      if (!fn) return null
+      return (fn as Function).call(this as any, code, id, options)
+    },
+
+    async resolveId(id: string) {
+      if (!_solidPlugins[0]?.resolveId) return null
+      const hook = _solidPlugins[0].resolveId
+      const fn   = typeof hook === 'function' ? hook : (hook as any).handler
+      if (!fn) return null
+      return (fn as Function).call(this as any, id, undefined, {})
+    },
+
+    async load(id: string) {
+      if (!_solidPlugins[0]?.load) return null
+      const hook = _solidPlugins[0].load
+      const fn   = typeof hook === 'function' ? hook : (hook as any).handler
+      if (!fn) return null
+      return (fn as Function).call(this as any, id, {})
+    },
+  }
+
+  // ── Plugin 3: server SSR build + client build trigger ────────────────────
+  const buildPlugin: Plugin = {
+    name:    'fnetro:build',
     apply:   'build',
     enforce: 'pre',
 
+    // Sync config hook — Omit<UserConfig, 'plugins'> satisfies the ObjectHook constraint
     config(_cfg: UserConfig, _env: ConfigEnv): Omit<UserConfig, 'plugins'> {
       return {
         build: {
@@ -612,12 +595,13 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
     async closeBundle() {
       console.log('\n⚡  FNetro: building client bundle…\n')
 
-      const solid = await loadSolid()
+      const solid = _solid ?? await loadSolid()
       const { build } = await import('vite')
 
+      // Client build — no SSR flag, solid compiles reactive primitives normally
       await (build as (c: InlineConfig) => Promise<unknown>)({
         configFile: false,
-        plugins:    flatPlugins(solid({ ...solidOptions })) as InlineConfig['plugins'],
+        plugins:    toPlugins(solid({ ...solidOptions })) as InlineConfig['plugins'],
         build: {
           outDir:   clientOutDir,
           manifest: true,
@@ -637,7 +621,7 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin[] {
     },
   }
 
-  return [solidSetupPlugin, solidJsxPlugin, serverBuildPlugin]
+  return [jsxPlugin, solidProxy, buildPlugin]
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
