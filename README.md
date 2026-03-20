@@ -1,6 +1,6 @@
 # ◈ Vono
 
-**Full-stack Hono + Vue 3 framework — Streaming SSR · SPA · Code Splitting · Type-safe Loaders · SEO · TypeScript**
+**Full-stack Hono + Vue 3 framework — Streaming SSR · SPA · Type-safe Loaders · SEO · Multi-runtime**
 
 [![npm](https://img.shields.io/npm/v/@netrojs/vono)](https://www.npmjs.com/package/@netrojs/vono)
 [![license](https://img.shields.io/npm/l/@netrojs/vono)](./LICENSE)
@@ -10,91 +10,71 @@
 ## Table of contents
 
 - [What is Vono?](#what-is-vono)
-- [How it works](#how-it-works)
 - [Quick start](#quick-start)
 - [Manual installation](#manual-installation)
-- [File structure](#file-structure)
+- [Project structure](#project-structure)
+- [Core concepts](#core-concepts)
 - [Routes](#routes)
   - [definePage()](#definepage)
   - [defineGroup()](#definegroup)
   - [defineLayout()](#definelayout)
   - [defineApiRoute()](#defineapiroute)
-- [Type-safe loaders](#type-safe-loaders)
-  - [InferPageData\<T\>](#inferpagedata)
+- [Type-safe loaders & InferPageData](#type-safe-loaders--inferpagedata)
 - [usePageData()](#usepagedata)
-- [State hydration & lifecycle hooks](#state-hydration--lifecycle-hooks)
+- [Composables](#composables)
+  - [useParams()](#useparams)
+  - [useNavigating()](#usenavigating)
+  - [useMeta()](#usemeta)
+  - [navigate()](#navigate)
+- [Lifecycle hooks](#lifecycle-hooks)
 - [SEO](#seo)
 - [Middleware](#middleware)
   - [Server middleware](#server-middleware)
   - [Client middleware](#client-middleware)
+- [Plugins (boot plugins)](#plugins-boot-plugins)
 - [Layouts](#layouts)
 - [Dynamic params](#dynamic-params)
 - [Code splitting](#code-splitting)
 - [SPA navigation & prefetch](#spa-navigation--prefetch)
 - [API routes](#api-routes)
+- [Error handling](#error-handling)
 - [Production build](#production-build)
 - [Multi-runtime deployment](#multi-runtime-deployment)
+  - [Node.js](#nodejs)
+  - [Bun](#bun)
+  - [Deno](#deno)
+  - [Edge (Cloudflare Workers, Vercel Edge)](#edge-cloudflare-workers-vercel-edge)
 - [Vite plugin reference](#vite-plugin-reference)
 - [API reference](#api-reference)
-- [How SSR hydration works internally](#how-ssr-hydration-works-internally)
+- [How it works internally](#how-it-works-internally)
 
 ---
 
 ## What is Vono?
 
-Vono is a **file-free, config-driven full-stack framework** that glues [Hono](https://hono.dev) (server) to [Vue 3](https://vuejs.org) (UI). You define your routes once in a plain TypeScript array. Vono:
+Vono is a **config-driven full-stack framework** that combines [Hono](https://hono.dev) (server) with [Vue 3](https://vuejs.org) (UI). You define your routes once in a plain TypeScript array. Vono handles the rest:
 
-1. **Renders them on the server** using Vue's streaming `renderToWebStream` — the browser gets `<head>` (CSS, scripts) immediately while the body streams in.
-2. **Hydrates them in the browser** as a Vue 3 SPA — subsequent navigations fetch only a small JSON payload and swap the reactive data in-place, no full reload.
+1. **Renders on the server** using Vue's streaming `renderToWebStream` — the browser gets `<head>` (CSS, scripts) immediately while the component tree streams in.
+2. **Hydrates in the browser** as a Vue 3 SPA — subsequent navigations fetch only a small JSON payload and swap the reactive data in-place, no full reload.
 3. **Infers types** from your loader all the way through to the component — one definition, zero duplication.
 
 ### Feature matrix
 
 | Feature | Detail |
 |---|---|
-| **Streaming SSR** | `renderToWebStream` — `<head>` is flushed before the body starts, so the browser can parse CSS and begin JS evaluation while Vue is still rendering. Lower TTFB than buffered SSR. |
-| **SPA navigation** | Vue Router 4 on the client. Navigations send `x-vono-spa: 1` and receive a small JSON `{ state, seo, params }` payload — no HTML re-render. |
-| **Code splitting** | Pass `() => import('./Page.vue')` as `component`. Vono resolves the import before SSR and wraps it in `defineAsyncComponent` on the client for lazy loading. |
-| **Type-safe loaders** | `definePage<TData>()` infers `TData` from your loader. `InferPageData<typeof page>` extracts it for use in components. `usePageData<T>()` returns it fully typed and reactive. |
-| **Full SEO** | Per-page title, description, Open Graph, Twitter Cards, JSON-LD structured data — injected into `<head>` on SSR and synced via the DOM on SPA navigation. |
-| **Server middleware** | Hono `MiddlewareHandler` — applied per-app, per-group (`defineGroup`), or per-route. Ideal for auth, rate limiting, logging. |
-| **Client middleware** | `useClientMiddleware()` — runs on SPA navigation before the data fetch. Ideal for auth guards, analytics, scroll restoration. |
-| **Route groups** | `defineGroup()` shares a URL prefix, layout, and middleware stack across multiple pages. |
-| **API routes** | `defineApiRoute()` co-locates Hono JSON endpoints alongside your page routes — same file, same middleware. |
-| **Multi-runtime** | `serve()` auto-detects Node.js, Bun, Deno. Edge runtimes (Cloudflare Workers, Vercel Edge) use `vono.handler` directly. |
-| **Zero config** | One Vite plugin (`vonoVitePlugin`) orchestrates both the SSR server bundle and the client SPA bundle. |
-
----
-
-## How it works
-
-```
-Browser request
-      │
-      ▼
- Hono (server.ts)
-      │  matches route
-      ▼
- loader(ctx)  ──────────────────────────► typed TData object
-      │
-      ▼
- renderToWebStream(Vue SSR app)
-      │
-      ├──► streams <head> immediately  ──► browser parses CSS + scripts
-      │
-      └──► streams <body> …           ──► browser renders progressive HTML
-                                            │
-                                      client.ts boots
-                                            │
-                                      createSSRApp() hydrates DOM
-                                            │
-                                      window.__VONO_STATE__ seeds
-                                      reactive page data (zero fetch)
-                                            │
-                                      Vue Router takes over navigation
-                                            │
-                                 SPA nav ──► fetch JSON ──► update reactive data
-```
+| **Streaming SSR** | `renderToWebStream` — `<head>` is flushed before the body starts so the browser can parse CSS and scripts while Vue renders. |
+| **SPA navigation** | Vue Router 4 on the client. Navigations fetch a small `{ state, seo, params }` JSON payload — no full HTML re-render. |
+| **Code splitting** | Pass `() => import('./Page.vue')` as `component`. Vono resolves it for SSR and wraps it in `defineAsyncComponent()` on the client. |
+| **Type-safe loaders** | `InferPageData<typeof page>` extracts the loader's return type. `usePageData<T>()` returns it fully typed and reactive. |
+| **Full SEO** | Title, description, OG, Twitter/X Cards, JSON-LD structured data — injected on SSR and DOM-synced on every SPA navigation. |
+| **Server middleware** | Hono `MiddlewareHandler` — per-app, per-group, or per-route. Auth guards, rate limiting, logging. |
+| **Client middleware** | `useClientMiddleware()` — runs before every SPA navigation. Auth redirects, analytics, scroll restoration. |
+| **Boot plugins** | `VonoPlugin` — runs once during `boot()` to install stores (Pinia, etc.), register global components, or add router guards. |
+| **Route groups** | `defineGroup()` shares a URL prefix, layout, and middleware across multiple routes. |
+| **API routes** | `defineApiRoute()` co-locates Hono JSON endpoints alongside page routes — same file, same middleware stack. |
+| **Suspense support** | `onServerPrefetch` and `async setup()` are fully supported via automatic `<Suspense>` wrapping. |
+| **Multi-runtime** | Node.js, Bun, Deno, Cloudflare Workers, Vercel Edge — auto-detected or explicitly configured. |
+| **Zero config** | `vonoVitePlugin()` orchestrates both the SSR server bundle and the client SPA bundle from one command. |
 
 ---
 
@@ -103,311 +83,428 @@ Browser request
 ```bash
 npm create @netrojs/vono@latest my-app
 cd my-app
-npm install
 npm run dev
 ```
 
-Or with Bun:
-
-```bash
-bun create @netrojs/vono@latest my-app
-cd my-app
-bun install
-bun run dev
-```
+Open [http://localhost:5173](http://localhost:5173).
 
 ---
 
 ## Manual installation
 
 ```bash
-npm i @netrojs/vono vue vue-router @vue/server-renderer hono
-npm i -D vite @vitejs/plugin-vue @hono/vite-dev-server @hono/node-server vue-tsc typescript
+npm install @netrojs/vono hono vue vue-router @vue/server-renderer
+npm install -D vite @vitejs/plugin-vue @hono/vite-dev-server @hono/node-server typescript vue-tsc
 ```
 
 ---
 
-## File structure
+## Project structure
 
 ```
 my-app/
-├── app.ts               ← createVono() + default export for dev server
-├── server.ts            ← Production server entry (await serve(...))
-├── client.ts            ← Browser hydration entry (boot(...))
+├── app/
+│   ├── layouts/
+│   │   └── RootLayout.vue    # Layout components (must render <slot />)
+│   ├── pages/
+│   │   ├── home.vue
+│   │   └── blog/
+│   │       └── [slug].vue    # Dynamic segment
+│   └── routes.ts             # All route definitions
+├── app.ts                    # createVono() — Hono app factory
+├── client.ts                 # boot() — browser hydration entry
+├── server.ts                 # serve() — production server entry
 ├── vite.config.ts
-├── tsconfig.json
-├── global.d.ts          ← Window augmentation for SSR-injected keys
-└── app/
-    ├── routes.ts         ← All route definitions (pages, groups, APIs)
-    ├── layouts/
-    │   └── RootLayout.vue
-    ├── pages/
-    │   ├── home.vue
-    │   ├── blog/
-    │   │   ├── index.vue
-    │   │   └── [slug].vue
-    │   └── dashboard/
-    │       └── index.vue
-    └── style.css
+└── tsconfig.json
+```
+
+---
+
+## Core concepts
+
+### Request lifecycle
+
+```
+Browser request
+      │
+      ▼
+Hono catches all routes (app.ts)
+      │
+      ▼
+Route matching (Vono path matcher)
+      │
+      ▼
+Server middleware chain
+      │
+      ▼
+loader(ctx) ──────────────────────► typed TData object
+      │
+      ▼
+renderToWebStream(Vue SSR app + Suspense)
+      │                            ▲
+      ├──► streams <head>          │  onServerPrefetch hooks awaited here
+      │    (CSS, scripts)          │  async setup() awaited here
+      │                            │
+      └──► streams <body> … ───────┘
+
+Client boots:
+  createSSRApp() hydrates DOM
+  window.__VONO_STATE__ seeds reactive page data (zero fetch)
+  Vue Router takes over navigation
+
+SPA navigation:
+  fetch /path  {x-vono-spa: 1}  ──► { state, seo, params } JSON
+  updatePageData(state)          ──► reactive re-render
+  syncSEO(seo)                   ──► DOM <head> update
 ```
 
 ---
 
 ## Routes
 
-All routes are defined in a plain TypeScript array and passed to `createVono()` and `boot()`.
+All routes are defined in a single TypeScript array. Pass it to both `createVono()` (server) and `boot()` (client).
 
-### `definePage()`
+```typescript
+// app/routes.ts
+import { definePage, defineGroup, defineLayout, defineApiRoute } from '@netrojs/vono'
+import RootLayout from './layouts/RootLayout.vue'
 
-The core building block. Every page is a `definePage()` call.
+export const rootLayout = defineLayout(RootLayout)
 
-```ts
-import { definePage } from '@netrojs/vono'
-
-export const homePage = definePage({
-  // URL path — supports [param] and [...catchAll] syntax
-  path: '/',
-
-  // Hono middleware applied only to this route (runs before the loader)
-  middleware: [logRequest],
-
-  // Server-side data fetcher — return value is typed and passed to usePageData()
-  loader: async (c) => ({
-    posts: await db.posts.findMany(),
-    user:  c.get('user'),       // access Hono context variables
-  }),
-
-  // Static SEO object OR a function that receives (loaderData, params)
-  seo: (data, params) => ({
-    title:       `${data.posts.length} posts — My Blog`,
-    description: 'The latest posts from our blog.',
-    ogType:      'website',
-  }),
-
-  // Layout override for this specific page
-  layout: myLayout,   // or `false` to disable the app-level layout
-
-  // Vue component — use () => import() for automatic code splitting
-  component: () => import('./pages/home.vue'),
-})
-
-// Export the inferred type for use in components
-export type HomeData = InferPageData<typeof homePage>
+export const routes = [
+  homePage,
+  blogListPage,
+  blogPostPage,
+  defineGroup({ ... }),
+  defineApiRoute('/api/posts', app => { ... }),
+]
 ```
 
-**Loader context** (`LoaderCtx`) is the full Hono `Context` object — you have access to `c.req`, `c.env`, `c.get()` / `c.set()`, `c.redirect()`, response helpers, and anything set by upstream middleware.
+### definePage()
 
-### `defineGroup()`
+```typescript
+definePage({
+  path:       '/blog/[slug]',    // Vono [param] syntax
+  layout:     rootLayout,        // override or omit to inherit
+  middleware: [authGuard],       // optional server-side middleware
+  seo: (data, params) => ({      // static object or function
+    title: `${data.post.title} — Blog`,
+  }),
+  loader: async (c) => {         // runs on the server before every render
+    const slug = c.req.param('slug')
+    return { post: await fetchPost(slug) }
+  },
+  component: () => import('./pages/blog/[slug].vue'),  // code-split
+})
+```
 
-Groups share a URL prefix, a layout, and a middleware stack.
+**Loader context `c`** is a Hono [`Context`](https://hono.dev/docs/api/context) — you have access to `c.req`, `c.res`, cookies, headers, environment bindings, etc.
 
-```ts
-import { defineGroup } from '@netrojs/vono'
+### defineGroup()
 
-export const dashboardGroup = defineGroup({
+Group multiple routes under a shared prefix, layout, and middleware:
+
+```typescript
+defineGroup({
   prefix:     '/dashboard',
   layout:     dashboardLayout,
-  middleware: [requireAuth],   // applied to every child route
+  middleware: [authGuard],      // runs before every route in the group
   routes: [
-    definePage({ path: '',        component: () => import('./pages/dashboard/index.vue') }),
-    definePage({ path: '/posts',  component: () => import('./pages/dashboard/posts.vue') }),
-    definePage({ path: '/users',  component: () => import('./pages/dashboard/users.vue') }),
+    definePage({ path: '',         component: () => import('./pages/dashboard/index.vue') }),
+    definePage({ path: '/posts',   component: () => import('./pages/dashboard/posts.vue') }),
+    definePage({ path: '/settings',component: () => import('./pages/dashboard/settings.vue') }),
   ],
 })
 ```
 
-- Child paths are concatenated: prefix `/dashboard` + path `/posts` → `/dashboard/posts`.
-- Use `path: ''` (empty string) for the index route of a group (`/dashboard`).
-- Groups can be nested.
+### defineLayout()
 
-### `defineLayout()`
+Wraps a Vue component as a Vono layout. The component **must** render `<slot />` where page content will appear.
 
-Wraps a Vue component as a Vono layout. The component must render `<slot />` where the page content goes.
-
-```ts
-import { defineLayout } from '@netrojs/vono'
+```typescript
 import RootLayout from './layouts/RootLayout.vue'
-
 export const rootLayout = defineLayout(RootLayout)
 ```
 
-Pass it to `createVono({ layout: rootLayout })` for an app-wide default, to `defineGroup({ layout })` for a section, or directly to `definePage({ layout })` for a single page. Set `layout: false` on a page to opt out of any inherited layout.
+```vue
+<!-- layouts/RootLayout.vue -->
+<template>
+  <header>…</header>
+  <main><slot /></main>
+  <footer>…</footer>
+</template>
+```
 
-### `defineApiRoute()`
+Set `layout: false` on a page or group to render with no layout:
 
-Co-locate a Hono JSON API alongside your page routes. The callback receives a Hono sub-app mounted at `path`.
+```typescript
+definePage({ path: '/login', layout: false, component: LoginPage })
+```
 
-```ts
-import { defineApiRoute } from '@netrojs/vono'
+### defineApiRoute()
 
-export const postsApi = defineApiRoute('/api/posts', (app, globalMiddleware) => {
-  app.get('/',       (c) => c.json({ posts: await db.posts.findMany() }))
-  app.get('/:slug',  (c) => c.json(await db.posts.findBySlug(c.req.param('slug'))))
-  app.post('/',      requireAuth, async (c) => {
+Co-locate Hono API handlers with your page routes:
+
+```typescript
+defineApiRoute('/api/posts', (app) => {
+  app.get('/',      (c) => c.json({ posts }))
+  app.post('/',     async (c) => {
     const body = await c.req.json()
-    return c.json(await db.posts.create(body), 201)
+    // ...
+    return c.json(newPost, 201)
+  })
+  app.delete('/:id', async (c) => {
+    // ...
+    return c.json({ deleted: true })
   })
 })
 ```
 
-API routes are registered on the Hono app **before** the catch-all page handler, so they always take priority.
-
 ---
 
-## Type-safe loaders
+## Type-safe loaders & InferPageData
 
-The `loader` function's return type is inferred automatically:
+Define the type once — in the loader. Derive it everywhere else.
 
-```ts
+```typescript
+// app/routes.ts
 export const postPage = definePage({
   path:      '/blog/[slug]',
-  loader:    async (c) => {
-    const post = await db.findPost(c.req.param('slug'))
-    return { post, related: await db.relatedPosts(post.id) }
-  },
+  loader:    async (c) => ({
+    post:        await fetchPost(c.req.param('slug')),
+    relatedPosts: await fetchRelated(c.req.param('slug')),
+  }),
   component: () => import('./pages/blog/[slug].vue'),
 })
+
+// Export the inferred type — zero duplication
+export type PostData = InferPageData<typeof postPage>
+// PostData = { post: Post; relatedPosts: Post[] }
 ```
 
-TypeScript infers `TData = { post: Post; related: Post[] }` from the loader automatically. The full chain is type-safe: server loader → SSR render → `window.__VONO_STATE__` → `usePageData<T>()` in the component.
-
-### `InferPageData<T>`
-
-Extract the loader type from an exported page definition — your **single source of truth**:
-
-```ts
-// routes.ts
-export const postPage = definePage({ loader: async () => ({ post: ... }), ... })
-export type PostData = InferPageData<typeof postPage>
-//          ^ { post: Post }  — derived from the loader, never written twice
-
+```typescript
 // pages/blog/[slug].vue
 import type { PostData } from '../routes'
 const data = usePageData<PostData>()
-//    ^ fully typed reactive object
+// data.post is typed as Post ✅
+// data.relatedPosts is typed as Post[] ✅
 ```
-
-This pattern means you never manually maintain a parallel type — change the loader and TypeScript propagates the error to every component immediately.
 
 ---
 
-## `usePageData()`
+## usePageData()
 
-Available inside any component rendered inside a Vono route:
+Access the current page's typed, reactive loader data from any component:
 
-```ts
+```typescript
 import { usePageData } from '@netrojs/vono/client'
-import type { PostData } from '../routes'
+import type { HomeData } from '../routes'
 
-const data = usePageData<PostData>()
-// data.post     → typed Post
-// data.related  → typed Post[]
+const data = usePageData<HomeData>()
+// data is readonly, reactive, and fully typed
 ```
 
-The returned object is **reactive** — when Vue Router performs a SPA navigation, Vono fetches the new JSON payload and updates the reactive store in-place. Components re-render automatically without being unmounted, preserving scroll position and any local state.
+The object updates in-place on every SPA navigation. Reactive derivations (`computed`, `watch`, template bindings) re-render automatically without the component unmounting.
 
-Calling `usePageData()` outside of a component `setup()` throws a clear error.
+```typescript
+const postCount = computed(() => data.posts.length)  // reactive ✅
+watch(() => data.user, u => console.log('user changed', u))  // reactive ✅
+```
+
+Must be called inside `setup()` or `<script setup>`.
 
 ---
 
-## State hydration & lifecycle hooks
+## Composables
 
-Vono performs **full SSR hydration**. This means:
+All composables are importable from `@netrojs/vono/client`.
 
-1. The server renders the complete HTML string and injects loader data as `window.__VONO_STATE__`.
-2. `boot()` calls `createSSRApp()` (not `createApp()`), which tells Vue to hydrate the existing DOM rather than re-render from scratch.
-3. Vue's reactivity system is activated on the existing DOM nodes — no flicker, no double render.
-4. All Vue lifecycle hooks work exactly as expected after hydration:
+### useParams()
+
+Typed wrapper around `useRoute().params`:
+
+```typescript
+// route: /blog/[slug]
+const { slug } = useParams<{ slug: string }>()
+```
+
+### useNavigating()
+
+A readonly `Ref<boolean>` that is `true` while an SPA navigation is in flight:
+
+```typescript
+const navigating = useNavigating()
+// <div v-if="navigating" class="progress-bar" />
+```
+
+### useMeta()
+
+Reactively override `<head>` meta from inside any component. Accepts a plain object or a reactive factory:
+
+```typescript
+// Static
+useMeta({ title: 'My Page', description: 'Hello world' })
+
+// Reactive — re-runs whenever post changes
+const post = computed(() => data.post)
+useMeta(() => ({
+  title:       post.value?.title ?? 'Loading…',
+  description: post.value?.excerpt,
+  ogImage:     post.value?.coverImage,
+}))
+```
+
+No-op during SSR — server-side meta is controlled by the loader's `seo` option.
+
+### navigate()
+
+Programmatic navigation usable outside Vue component trees:
+
+```typescript
+import { navigate } from '@netrojs/vono/client'
+
+// From an event handler, store action, etc.
+await navigate('/dashboard')
+await navigate({ path: '/search', query: { q: 'vono' } })
+```
+
+Throws if called before `boot()`.
+
+---
+
+## Lifecycle hooks
+
+All Vue 3 lifecycle hooks are re-exported from `@netrojs/vono/client`:
+
+```typescript
+import {
+  onMounted,
+  onBeforeMount,
+  onUnmounted,
+  onBeforeUnmount,
+  onUpdated,
+  onBeforeUpdate,
+  onActivated,       // inside <KeepAlive>
+  onDeactivated,     // inside <KeepAlive>
+  onErrorCaptured,   // intercept errors from children
+  onServerPrefetch,  // SSR-only async data fetch
+  onRenderTracked,   // dev-mode debugging
+  onRenderTriggered, // dev-mode debugging
+} from '@netrojs/vono/client'
+```
+
+**`onServerPrefetch`** — async hook awaited before `renderToString` / `renderToWebStream` completes. Use it to fetch data that cannot go in the loader (e.g. inside a Pinia store):
 
 ```vue
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, onBeforeMount } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { usePageData } from '@netrojs/vono/client'
+import { onServerPrefetch } from '@netrojs/vono/client'
+import { usePostStore } from '../stores/posts'
 
-const data   = usePageData<MyData>()
-const route  = useRoute()
-const router = useRouter()
+const store = usePostStore()
 
-// ref / computed / watch — all work as normal
-const count   = ref(0)
-const doubled = computed(() => count.value * 2)
-watch(() => data.title, (t) => document.title = t)
-
-// onMounted fires after hydration on the client (not on the server)
-// Safe to access DOM APIs, start timers, attach event listeners
-onMounted(() => {
-  console.log('Hydrated!', document.title)
-})
-
-onUnmounted(() => {
-  // Clean up subscriptions, timers, etc.
+// Runs on the server before the page is streamed
+onServerPrefetch(async () => {
+  await store.fetchPosts()
 })
 </script>
 ```
 
-**Key rules:**
-- `onMounted` and DOM APIs are **client-only** — they are never called during SSR. This is standard Vue SSR behaviour.
-- `ref`, `computed`, `watch`, `provide/inject` all work in both SSR and client contexts.
-- `useRoute()` and `useRouter()` work after hydration because `boot()` installs the Vue Router instance into the app before mounting.
-- Do not access `window`, `document`, or `localStorage` outside of `onMounted` (or `if (import.meta.env.SSR)` guards) — they are undefined on the server.
+> **Requirement**: `onServerPrefetch` requires the component tree to be wrapped in `<Suspense>`. Vono adds this wrapper automatically in both `renderPage()` (server) and `boot()` (client), so you do not need to add it yourself.
 
 ---
 
 ## SEO
 
-Define SEO per page, either as a static object or as a function that receives the loader data and URL params:
+### Loader-level SEO (recommended)
 
-```ts
+Use the `seo` option on `definePage()`:
+
+```typescript
 // Static
 definePage({
   seo: {
-    title:       'Home — My Site',
-    description: 'Welcome to my site.',
-    ogTitle:     'Home',
-    ogImage:     'https://my-site.com/og/home.png',
+    title:       'Home — My App',
+    description: 'The best app ever.',
+    ogImage:     'https://myapp.com/og/home.png',
     twitterCard: 'summary_large_image',
-    jsonLd: {
-      '@context': 'https://schema.org',
-      '@type':    'WebSite',
-      name:       'My Site',
-      url:        'https://my-site.com',
-    },
   },
   ...
 })
 
-// Dynamic — function receives (loaderData, params)
+// Dynamic (function receives loader output + URL params)
 definePage({
   seo: (data, params) => ({
-    title:       `${data.post.title} — My Blog`,
+    title:       `${data.post.title} — Blog`,
     description: data.post.excerpt,
-    ogType:      'article',
-    ogImage:     `https://my-site.com/og/${params.slug}.png`,
-    canonical:   `https://my-site.com/blog/${params.slug}`,
+    ogImage:     data.post.coverImage,
+    canonical:   `https://myapp.com/blog/${params.slug}`,
+    jsonLd: {
+      '@context':    'https://schema.org',
+      '@type':       'BlogPosting',
+      headline:      data.post.title,
+      datePublished: data.post.date,
+    },
   }),
   ...
 })
 ```
 
-Global defaults are set in `createVono({ seo: { ... } })` and merged with per-page values (page wins on any key they both define).
+### Global SEO defaults
 
-On SPA navigation, `syncSEO()` is called automatically to update `document.title` and all `<meta>` tags in-place.
+Set defaults in `createVono()` and `boot()`. Per-page values override them:
 
-**Supported fields:**
+```typescript
+createVono({
+  seo: {
+    ogSiteName:  'My App',
+    ogType:      'website',
+    twitterCard: 'summary_large_image',
+    robots:      'index, follow',
+  },
+  ...
+})
+```
 
-| Field | HTML output |
-|---|---|
-| `title` | `<title>` |
-| `description` | `<meta name="description">` |
-| `keywords` | `<meta name="keywords">` |
-| `author` | `<meta name="author">` |
-| `robots` | `<meta name="robots">` |
-| `canonical` | `<link rel="canonical">` |
-| `themeColor` | `<meta name="theme-color">` |
-| `ogTitle`, `ogDescription`, `ogImage`, `ogUrl`, `ogType`, `ogSiteName`, `ogImageAlt` | `<meta property="og:…">` |
-| `twitterCard`, `twitterSite`, `twitterTitle`, `twitterDescription`, `twitterImage` | `<meta name="twitter:…">` |
-| `jsonLd` | `<script type="application/ld+json">` |
+### Component-level SEO
+
+Use `useMeta()` for dynamic meta that depends on client-only state:
+
+```typescript
+useMeta(() => ({ title: `${unreadCount.value} notifications — Dashboard` }))
+```
+
+### Full SEOMeta reference
+
+```typescript
+interface SEOMeta {
+  // Core
+  title?:              string
+  description?:        string
+  keywords?:           string
+  author?:             string
+  robots?:             string
+  canonical?:          string
+  themeColor?:         string
+  // Open Graph
+  ogTitle?:            string
+  ogDescription?:      string
+  ogImage?:            string
+  ogImageAlt?:         string
+  ogUrl?:              string
+  ogType?:             string
+  ogSiteName?:         string
+  // Twitter / X Cards
+  twitterCard?:        'summary' | 'summary_large_image' | 'app' | 'player'
+  twitterSite?:        string
+  twitterCreator?:     string
+  twitterTitle?:       string
+  twitterDescription?: string
+  twitterImage?:       string
+  twitterImageAlt?:    string
+  // Structured data
+  jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>
+}
+```
 
 ---
 
@@ -415,193 +512,221 @@ On SPA navigation, `syncSEO()` is called automatically to update `document.title
 
 ### Server middleware
 
-Vono server middleware is a standard Hono `MiddlewareHandler`:
+Server middleware uses Hono's standard `MiddlewareHandler` signature. Applied per-app, per-group, or per-route.
 
-```ts
+```typescript
 import type { HonoMiddleware } from '@netrojs/vono'
 
-const requireAuth: HonoMiddleware = async (c, next) => {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '')
-  if (!token || !verifyToken(token)) {
-    return c.json({ error: 'Unauthorized' }, 401)
+// Per-route auth guard
+const authGuard: HonoMiddleware = async (c, next) => {
+  const session = getCookie(c, 'session')
+  if (!session) {
+    const isSPA = c.req.header('x-vono-spa') === '1'
+    return isSPA
+      ? c.json({ error: 'Unauthorized' }, 401)
+      : c.redirect('/login')
   }
-  // Pass user to downstream handlers via Hono context
-  c.set('user', decodeToken(token))
   await next()
 }
 
-const logRequest: HonoMiddleware = async (c, next) => {
+// Per-app logging
+const logger: HonoMiddleware = async (c, next) => {
   const start = Date.now()
   await next()
-  console.log(`${c.req.method} ${c.req.path} → ${Date.now() - start}ms`)
+  console.log(`${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms`)
 }
+
+createVono({
+  middleware: [logger],     // runs on every request
+  routes: [
+    defineGroup({
+      prefix:     '/dashboard',
+      middleware: [authGuard],  // runs on every route in the group
+      routes: [...],
+    }),
+    definePage({
+      path:       '/admin',
+      middleware: [authGuard, adminOnly],  // runs on this route only
+      ...
+    }),
+  ],
+})
 ```
-
-**Three levels of application:**
-
-```ts
-// 1. App-wide (runs before every page and API route)
-createVono({ middleware: [logRequest], routes })
-
-// 2. Per group (runs for every route inside the group)
-defineGroup({ middleware: [requireAuth], prefix: '/dashboard', routes: [...] })
-
-// 3. Per page (runs only for that specific route)
-definePage({ middleware: [rateLimit], path: '/api/expensive', ... })
-```
-
-Middleware is executed in order: app → group → route. Return early (without calling `next()`) to short-circuit the chain.
 
 ### Client middleware
 
-Runs on every SPA navigation **before** the JSON data fetch:
+Client middleware runs on every SPA navigation, before the JSON fetch. Register it before `boot()`:
 
-```ts
+```typescript
 import { useClientMiddleware } from '@netrojs/vono/client'
 
-// Call before boot() — typically in client.ts
-useClientMiddleware(async (url, next) => {
-  // Auth guard — redirect to login if session expired
-  if (url.startsWith('/dashboard') && !isLoggedIn()) {
+// Auth redirect
+useClientMiddleware(async (to, next) => {
+  if (to.startsWith('/dashboard') && !isLoggedIn()) {
     await navigate('/login')
-    return  // don't call next() — cancels the navigation
+    return  // abort — do not call next()
   }
-
-  // Analytics
-  analytics.track('pageview', { url })
-
-  await next()  // proceed with the navigation
+  await next()
 })
+
+// Analytics
+useClientMiddleware(async (to, next) => {
+  await next()  // wait for navigation to complete
+  analytics.pageView(to)
+})
+
+boot({ routes })
 ```
 
 ---
 
-## Layouts
+## Plugins (boot plugins)
 
-A layout is a Vue component that wraps page content via `<slot />`:
+`VonoPlugin` functions run once during `boot()`, after the Vue app and Vue Router are created but before the app is mounted. Use them to install stores, register global components, or add router guards.
 
-```vue
-<!-- layouts/RootLayout.vue -->
-<script setup lang="ts">
-import { RouterLink } from 'vue-router'
-</script>
+```typescript
+import { boot }        from '@netrojs/vono/client'
+import { createPinia } from 'pinia'
+import type { VonoPlugin } from '@netrojs/vono/client'
 
-<template>
-  <div class="app">
-    <nav>
-      <RouterLink to="/">Home</RouterLink>
-      <RouterLink to="/blog">Blog</RouterLink>
-    </nav>
-    <main>
-      <slot />   <!-- page content renders here -->
-    </main>
-    <footer>© 2025</footer>
-  </div>
-</template>
-```
+const piniaPlugin: VonoPlugin = ({ app }) => {
+  app.use(createPinia())
+}
 
-Register and apply it:
+const routerGuardPlugin: VonoPlugin = ({ router }) => {
+  router.beforeEach((to, from, next) => {
+    // global guard
+    next()
+  })
+  router.afterEach((to) => {
+    analytics.pageView(to.fullPath)
+  })
+}
 
-```ts
-// routes.ts
-export const rootLayout = defineLayout(RootLayout)
-
-// App-wide default
-createVono({ layout: rootLayout, routes })
-
-// Per-section override
-defineGroup({ layout: dashboardLayout, prefix: '/dashboard', routes: [...] })
-
-// Per-page override
-definePage({ layout: false, ... })  // disables layout for this page
+boot({
+  routes,
+  plugins: [piniaPlugin, routerGuardPlugin],
+})
 ```
 
 ---
 
 ## Dynamic params
 
-Use bracket syntax in paths. Params are available in `loader`, `seo`, and components via `useRoute()`:
+Use `[param]` for named segments and `[...param]` for catch-alls:
 
-```ts
-// Single param
-definePage({ path: '/blog/[slug]', loader: (c) => ({ post: db.findPost(c.req.param('slug')) }) })
+```typescript
+// Single segment
+definePage({ path: '/blog/[slug]',  ... })
+definePage({ path: '/users/[id]',   ... })
 
-// Multiple params
-definePage({ path: '/user/[id]/post/[postId]', loader: (c) => ({
-  user: db.findUser(c.req.param('id')),
-  post: db.findPost(c.req.param('postId')),
-}) })
-
-// Catch-all (matches /files/a/b/c → params.path = 'a/b/c')
-definePage({ path: '/files/[...path]', loader: (c) => ({ path: c.req.param('path') }) })
+// Catch-all
+definePage({ path: '/docs/[...path]', ... })
+// matches /docs/getting-started/installation
 ```
 
-Inside a component:
+Access params in loaders:
 
-```vue
-<script setup lang="ts">
-import { useRoute } from 'vue-router'  // re-exported from @netrojs/vono/client
+```typescript
+loader: async (c) => {
+  const slug = c.req.param('slug')     // typed as string
+  const path = c.req.param('path')     // typed as string
+  return { post: await fetchPost(slug) }
+}
+```
+
+Access params in components:
+
+```typescript
+const { slug } = useParams<{ slug: string }>()
+// or
 const route = useRoute()
-// route.params.slug — string
-</script>
+const slug  = route.params.slug as string
 ```
 
 ---
 
 ## Code splitting
 
-Every page with `component: () => import('./pages/X.vue')` generates a separate JS chunk. Vono handles the split correctly in both environments:
+Pass an async factory instead of a direct component reference to get per-route code splitting automatically:
 
-- **Server (SSR):** `isAsyncLoader()` detects the factory, awaits the import, and renders the resolved component synchronously.
-- **Client (hydration):** The current route's chunk is pre-loaded before `app.mount()` to guarantee the client VDOM matches the SSR HTML. All other route chunks are lazy-loaded on demand via `defineAsyncComponent`.
+```typescript
+// ✅ Code-split — only loaded when the route is first visited
+component: () => import('./pages/blog/[slug].vue')
 
-No configuration needed — just use dynamic imports.
+// ✗ Not split — bundled into the main chunk
+import SlugPage from './pages/blog/[slug].vue'
+component: SlugPage
+```
+
+On the server, Vono resolves the async import before rendering so SSR always outputs the full HTML. On the client, the chunk is lazy-loaded after hydration.
 
 ---
 
 ## SPA navigation & prefetch
 
-After hydration, Vue Router handles all same-origin navigation. Vono's `router.beforeEach` hook intercepts every navigation and:
+After hydration, all internal navigation is handled by Vue Router without a full page reload. Vono intercepts route changes in `router.beforeEach()`, fetches the JSON payload, updates the reactive store, and syncs the `<head>` meta — all in one guard.
 
-1. Sends `GET <url>` with `x-vono-spa: 1` header.
-2. The server recognises the header and returns `{ state, seo, params }` JSON (skipping SSR entirely).
-3. The reactive page data store is updated in-place — components re-render reactively.
-4. `syncSEO()` updates all meta tags.
+**Prefetch on hover** (default `true`) warms the fetch cache before the user clicks:
 
-**Prefetch on hover** (enabled by default) warms the fetch cache before the user clicks:
-
-```ts
+```typescript
 boot({ routes, prefetchOnHover: true })
 ```
 
 **Manual prefetch:**
 
-```ts
+```typescript
 import { prefetch } from '@netrojs/vono/client'
+
 prefetch('/blog/my-post')
+// or call it in onMounted for a known next page
 ```
+
+The fetch cache is bounded at 50 entries (LRU eviction) to prevent unbounded memory growth.
 
 ---
 
 ## API routes
 
-API routes are standard Hono apps mounted at the given path:
+`defineApiRoute()` mounts a Hono sub-app at the given path. It runs independently from the SSR page handler.
 
-```ts
-export const usersApi = defineApiRoute('/api/users', (app) => {
-  app.get('/',    async (c) => c.json(await db.users.findMany()))
-  app.post('/',   requireAuth, async (c) => {
-    const body = await c.req.json<{ name: string; email: string }>()
-    return c.json(await db.users.create(body), 201)
+```typescript
+defineApiRoute('/api/posts', (app) => {
+  // GET /api/posts
+  app.get('/', (c) => c.json({ posts: POSTS }))
+
+  // GET /api/posts/:slug
+  app.get('/:slug', (c) => {
+    const post = POSTS.find(p => p.slug === c.req.param('slug'))
+    return post ? c.json(post) : c.json({ error: 'Not found' }, 404)
   })
-  app.delete('/:id', requireAuth, async (c) => {
-    await db.users.delete(c.req.param('id'))
-    return c.body(null, 204)
+
+  // POST /api/posts
+  app.post('/', async (c) => {
+    const body = await c.req.json<{ title: string }>()
+    // validate + persist ...
+    return c.json(newPost, 201)
   })
 })
 ```
 
-The Hono sub-app is mounted **before** the page handler catch-all, so API routes always win. You can call your own API from `loader()` or from the client using `fetch()`.
+Global app middleware (e.g. auth, rate limiting) is forwarded to every API sub-app automatically.
+
+---
+
+## Error handling
+
+Vono wraps every SSR render in `try/catch`. In development, rendering errors are shown as a styled HTML page with the full stack trace. In production, a plain `500 Internal Server Error` is returned.
+
+To add a custom error page for unmatched routes, pass `notFound` to `createVono()`:
+
+```typescript
+import NotFoundPage from './app/pages/404.vue'
+
+createVono({ routes, notFound: NotFoundPage })
+```
+
+The `notFound` component is SSR-rendered and served with HTTP `404`.
 
 ---
 
@@ -609,160 +734,184 @@ The Hono sub-app is mounted **before** the page handler catch-all, so API routes
 
 ```bash
 npm run build
+# Outputs:
+#   dist/server/server.js  — SSR bundle (ESM, Node 18+, top-level await)
+#   dist/assets/           — client SPA chunks + .vite/manifest.json
 ```
-
-This runs `vite build` which triggers `vonoVitePlugin`:
-
-1. **SSR bundle** — `dist/server/server.js` (ES module, `target: node18`, top-level await enabled, all dependencies externalised).
-2. **Client bundle** — `dist/assets/` (ES module chunks + `.vite/manifest.json` for asset fingerprinting).
 
 ```bash
-npm run start
-# node dist/server/server.js
+npm start
+# Runs: node dist/server/server.js
 ```
-
-The production server reads the manifest, injects the correct hashed script and CSS URLs, and serves static assets from `dist/assets/`.
-
-### Why `target: 'node18'` matters
-
-The SSR bundle uses `await serve(...)` at the top level. esbuild's default browser targets (`chrome87`, `es2020`, etc.) do not support top-level await, causing the build to fail with:
-
-```
-Top-level await is not available in the configured target environment
-```
-
-`vonoVitePlugin` explicitly sets `target: 'node18'` for the SSR build, which tells esbuild to emit ES2022+ syntax — including top-level await — in the output.
 
 ---
 
 ## Multi-runtime deployment
 
+`serve()` auto-detects the runtime at startup. You can also set it explicitly.
+
 ### Node.js
 
-```ts
+```typescript
 // server.ts
 import { serve } from '@netrojs/vono/server'
-import { vono } from './app'
+import { vono }  from './app'
 
-await serve({ app: vono, port: 3000, runtime: 'node' })
+await serve({ app: vono, port: 3000 })
+// runtime is auto-detected as 'node'
 ```
+
+Install: `npm install @hono/node-server`
 
 ### Bun
 
-```ts
-await serve({ app: vono, port: 3000, runtime: 'bun' })
+```bash
+bun dist/server/server.js
+```
+
+Bun's `Bun.serve()` is used automatically. Static files are served via `Bun.file()` — no additional dependencies needed.
+
+```json
+// package.json (generated by create-vono for Bun)
+{
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
 ```
 
 ### Deno
 
-```ts
-await serve({ app: vono, port: 3000, runtime: 'deno' })
+```bash
+deno run -A dist/server/server.js
 ```
 
-### Cloudflare Workers / Edge
+Deno's `Deno.serve()` is used automatically. Static files are read with `Deno.readFile()`.
 
-```ts
-// worker.ts — export the handler; no serve() call
-import { vono } from './app'
+### Edge (Cloudflare Workers, Vercel Edge)
+
+Export `vono.handler` directly and configure your platform's entry point to call it:
+
+```typescript
+// worker.ts (Cloudflare Workers)
+import { createVono } from '@netrojs/vono/server'
+import { routes }     from './app/routes'
+
+const vono = createVono({ routes })
+
 export default { fetch: vono.handler }
 ```
 
-### Vercel Edge
-
-```ts
-// api/index.ts
-import { vono } from '../../app'
-export const config = { runtime: 'edge' }
-export default vono.handler
-```
+> **Note**: Edge runtimes do not support `serve()`. Use `vono.handler` instead.
 
 ---
 
 ## Vite plugin reference
 
-```ts
-// vite.config.ts
+```typescript
 import { vonoVitePlugin } from '@netrojs/vono/vite'
 
 vonoVitePlugin({
-  serverEntry:    'server.ts',   // default
-  clientEntry:    'client.ts',   // default
-  serverOutDir:   'dist/server', // default
-  clientOutDir:   'dist/assets', // default
-  serverExternal: ['pg', 'ioredis'],  // extra packages kept external in SSR bundle
-  vueOptions:     { /* @vitejs/plugin-vue options for the client build */ },
+  serverEntry?:    string   // default: 'server.ts'
+  clientEntry?:    string   // default: 'client.ts'
+  serverOutDir?:   string   // default: 'dist/server'
+  clientOutDir?:   string   // default: 'dist/assets'
+  serverExternal?: string[] // extra packages external to the server bundle
+  vueOptions?:     object   // forwarded to @vitejs/plugin-vue (client build only)
 })
 ```
 
-The plugin:
-- On `vite build`: configures the SSR server bundle (target `node18`, externals, ESM output).
-- In `closeBundle`: triggers a separate `build()` call for the client SPA bundle with manifest enabled.
+Plugin order in `vite.config.ts` **must** be:
+
+```typescript
+plugins: [
+  vue(),            // 1. transforms .vue SFCs
+  vonoVitePlugin(), // 2. orchestrates the dual build
+  devServer({ entry: 'app.ts', injectClientScript: false }), // 3. dev proxy
+]
+```
 
 ---
 
 ## API reference
 
-### `@netrojs/vono` (core, isomorphic)
+### `@netrojs/vono` (core)
 
 | Export | Description |
 |---|---|
 | `definePage(def)` | Define a page route |
 | `defineGroup(def)` | Define a route group |
 | `defineLayout(component)` | Wrap a Vue component as a layout |
-| `defineApiRoute(path, register)` | Define a Hono API sub-app |
-| `compilePath(path)` | Compile a Vono path to a RegExp + keys |
-| `matchPath(compiled, pathname)` | Match a pathname against a compiled path |
-| `toVueRouterPath(path)` | Convert `[param]` syntax to `:param` syntax |
-| `isAsyncLoader(fn)` | Detect an async component loader |
-| `InferPageData<T>` | Extract loader data type from a `PageDef` |
-| `SPA_HEADER`, `STATE_KEY`, `PARAMS_KEY`, `SEO_KEY`, `DATA_KEY` | Shared constants |
+| `defineApiRoute(path, register)` | Define a Hono API route |
+| `compilePath(path)` | Compile a Vono path to `{ re, keys }` |
+| `matchPath(cp, pathname)` | Match a compiled path against a URL |
+| `toVueRouterPath(path)` | Convert Vono `[param]` syntax to Vue Router `:param` syntax |
+| `resolveRoutes(routes, opts)` | Flatten the routes tree into pages and APIs |
+| `isAsyncLoader(value)` | Return `true` if `value` is an async component factory |
+| `SPA_HEADER` | `'x-vono-spa'` |
+| `STATE_KEY` | `'__VONO_STATE__'` |
+| `SEO_KEY` | `'__VONO_SEO__'` |
+| `DATA_KEY` | `Symbol.for('vono:data')` |
 
 ### `@netrojs/vono/server`
 
 | Export | Description |
 |---|---|
-| `createVono(options)` | Create the Hono app + streaming SSR handler |
-| `serve(options)` | Start the server on Node / Bun / Deno |
-| `detectRuntime()` | Auto-detect the current JS runtime |
-| `vonoVitePlugin(options)` | Vite plugin for dual-bundle production builds |
+| `createVono(config)` | Create the Vono Hono app — returns `{ app, handler }` |
+| `serve(opts)` | Start the HTTP server (auto-detects runtime) |
+| `detectRuntime()` | Return `'bun' \| 'deno' \| 'node' \| 'edge'` |
+| `vonoVitePlugin(opts)` | Vite plugin for dual-bundle production build |
 
 ### `@netrojs/vono/client`
 
 | Export | Description |
 |---|---|
-| `boot(options)` | Hydrate the SSR HTML and mount the Vue SPA |
-| `usePageData<T>()` | Access the current page's loader data (reactive) |
-| `useClientMiddleware(fn)` | Register a client-side navigation middleware |
-| `prefetch(url)` | Warm the SPA data cache for a URL |
-| `syncSEO(seo)` | Imperatively sync SEO meta tags |
-| `useRoute()` | Vue Router's `useRoute` (re-exported) |
-| `useRouter()` | Vue Router's `useRouter` (re-exported) |
-| `RouterLink` | Vue Router's `RouterLink` (re-exported) |
-
-### `@netrojs/vono/vite`
-
-| Export | Description |
-|---|---|
-| `vonoVitePlugin(options)` | Same as the server export — convenience alias |
+| `boot(options)` | Hydrate and boot the Vue SPA |
+| `usePageData<T>()` | Reactive, typed page loader data |
+| `useParams<T>()` | Typed URL params |
+| `useNavigating()` | `Readonly<Ref<boolean>>` — true during SPA navigation |
+| `useMeta(seo)` | Reactively override `<head>` meta |
+| `navigate(to)` | Programmatic navigation |
+| `prefetch(url)` | Warm the SPA data cache |
+| `syncSEO(seo)` | Manually sync SEO meta to the DOM |
+| `useClientMiddleware(mw)` | Register a client navigation middleware |
+| All Vue lifecycle hooks | `onMounted`, `onServerPrefetch`, etc. |
+| Vue reactivity | `ref`, `reactive`, `computed`, `watch`, `watchEffect`, `nextTick` |
+| Vue Router | `useRoute`, `useRouter`, `RouterLink`, `RouterView` |
 
 ---
 
-## How SSR hydration works internally
+## How it works internally
 
-Understanding this prevents subtle bugs:
+### Dev mode (`bun run dev` / `npm run dev`)
 
-**On the server**, for each request Vono:
-1. Matches the URL against compiled route patterns.
-2. Runs server middleware, then the loader.
-3. Creates a **fresh** `createSSRApp()` + `createRouter()` per request — no shared state between requests (critical for correctness in concurrent environments).
-4. Initialises `createMemoryHistory()` at the **request URL** before constructing the router. This prevents Vue Router from emitting `[Vue Router warn]: No match found for location with path "/"` — the warning fires when the router performs its startup navigation to the history's initial location (`/`) before any routes match.
-5. Awaits `router.isReady()`, then calls `renderToWebStream()` to stream HTML.
-6. Injects `window.__VONO_STATE__`, `__VONO_PARAMS__`, and `__VONO_SEO__` as inline `<script>` tags in the `<body>`.
+1. Vite starts in dev mode with `@hono/vite-dev-server` proxying all requests to the Hono app (`app.ts`).
+2. For each page request, Vono calls `renderToString()` (buffered, not streaming) because Vite's Connect pipeline cannot flush a `ReadableStream`. The buffered string is returned via `c.html()`.
+3. The client entry (`client.ts`) is served as a Vite dev module — HMR is fully functional.
 
-**On the client**, `boot()`:
-1. Reads the injected `window.__VONO_STATE__[pathname]` and seeds a module-level reactive store — no network request on first load.
-2. Calls `createSSRApp()` (not `createApp()`), which tells Vue to hydrate (adopt) the existing server-rendered DOM.
-3. Installs `readonly(reactiveStore)` as `DATA_KEY` into the Vue app via `provide()` — `usePageData()` reads from here.
-4. Pre-loads the current route's async component chunk synchronously (before `mount()`) to ensure the client VDOM matches the SSR HTML byte-for-byte, preventing hydration mismatches.
-5. Mounts the app — Vue reconciles the virtual DOM against the real DOM without re-rendering anything.
-6. On subsequent SPA navigations, `router.beforeEach` fetches JSON, updates the reactive store in-place, and calls `syncSEO()`.
+### Production (`npm run build`)
+
+1. `vite build` runs with `vonoVitePlugin` active.
+2. The plugin sets `build.ssr = 'server.ts'` and `target = 'node18'`, producing `dist/server/server.js` — an ESM bundle with top-level await enabled.
+3. In the `closeBundle` hook, the plugin calls `build()` again for the client entry, producing `dist/assets/` with a `.vite/manifest.json`.
+4. `serve()` reads the manifest and injects the hashed asset URLs into every SSR HTML shell.
+
+### SSR hydration safety
+
+- A **fresh Vue app + router** is created for every request to prevent cross-request state pollution (Vue SSR best practice).
+- The component tree is wrapped in `<Suspense>` to enable `onServerPrefetch` and `async setup()`.
+- Memory history is initialised at the request URL **before** the router is created, eliminating Vue Router's "No match found for '/'" startup warning on non-root routes.
+- The entire handler is wrapped in `try/catch`. Errors always produce a valid HTTP response — in dev with a full stack trace, in production with a plain 500.
+
+### Client hydration
+
+- `createSSRApp()` is used instead of `createApp()` so Vue hydrates existing DOM rather than re-rendering.
+- The current route's async chunk is pre-loaded before `app.mount()` to ensure the client VDOM matches the SSR HTML.
+- The `<Suspense>` wrapper in `boot()` mirrors the server's `renderPage()`, preventing hydration mismatches on pages with `async setup()`.
+- Reactive page data is stored in a single module-level `reactive({})` object that is updated in-place on each navigation, ensuring computed values and watchers stay live across routes.
+
+---
+
+## License
+
+MIT © [Netro Solutions](https://netrosolutions.com)

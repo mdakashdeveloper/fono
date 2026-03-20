@@ -19,10 +19,15 @@ import {
   defineLayout,
   defineApiRoute,
   type InferPageData,
+  type LoaderCtx,
 } from '@netrojs/vono'
-import type { LoaderCtx } from '@netrojs/vono'
-import RootLayout    from './layouts/RootLayout.vue'
+import RootLayout      from './layouts/RootLayout.vue'
 import DashboardLayout from './layouts/DashboardLayout.vue'
+
+// ── Layouts ───────────────────────────────────────────────────────────────────
+
+export const rootLayout      = defineLayout(RootLayout)
+export const dashboardLayout = defineLayout(DashboardLayout)
 
 // ── Shared data types (co-located with routes for InferPageData) ──────────────
 
@@ -75,11 +80,6 @@ function isAuthenticated(c: LoaderCtx): boolean {
   // Real app: check a JWT cookie / session token
   return c.req.header('cookie')?.includes('session=demo') ?? false
 }
-
-// ── Layouts ───────────────────────────────────────────────────────────────────
-
-export const rootLayout      = defineLayout(RootLayout)
-export const dashboardLayout = defineLayout(DashboardLayout)
 
 // ── API routes (Hono handlers) ────────────────────────────────────────────────
 

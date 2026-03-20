@@ -1,17 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  app.ts  ·  Hono app factory — used by dev server and imported by server.ts
+//  app.ts · Shared Hono app factory
 //
-//  @hono/vite-dev-server requires a Hono instance as the default export.
-//  createVono returns { app, handler }; we export both.
+//  Used by:
+//    • @hono/vite-dev-server (default export → Hono instance)
+//    • server.ts (named export → VonoApp for serve())
+//
+//  createVono() returns { app, handler }:
+//    app     — the Hono instance; attach extra routes or middleware here
+//    handler — WinterCG fetch handler for edge runtimes (Cloudflare, etc.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createVono } from '@netrojs/vono/server'
-import { routes, NotFoundPage } from './app/routes'
+import { routes, rootLayout, NotFoundPage } from './app/routes'
 
 export const vono = createVono({
   routes,
+  layout: rootLayout,
+  notFound: NotFoundPage,
 
-  // Global SEO defaults — merged with per-page overrides (page wins)
+  // Global SEO defaults — per-page seo options are merged on top of these.
   seo: {
     ogType:      'website',
     ogSiteName:  'Vono Demo',
@@ -19,18 +26,13 @@ export const vono = createVono({
     robots:      'index, follow',
   },
 
-  // Custom <html> attributes
   htmlAttrs: { lang: 'en', 'data-theme': 'dark' },
 
-  // Extra <head> HTML injected on every page (e.g. font preloads, analytics)
   head: `
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   `,
-
-  // Rendered for any unmatched URL (server-side 404)
-  notFound: NotFoundPage,
 })
 
-// Default export: the raw Hono instance — required by @hono/vite-dev-server
+// Default export: the raw Hono instance — required by @hono/vite-dev-server.
 export default vono.app

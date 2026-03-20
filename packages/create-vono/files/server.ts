@@ -1,18 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  server.ts  ·  Production server entry
+//  server.ts · Production entry point
 //
-//  Top-level await is used here because the SSR bundle is built with
-//  target: 'node18' by vonoVitePlugin — which enables it in the output.
-//  See packages/vono/server.ts → vonoVitePlugin → config() → target.
+//  Top-level await works here because vonoVitePlugin builds the server bundle
+//  with `target: 'node18'`, which enables ES2022 top-level await.
+//
+//  serve() auto-detects the runtime (Node.js / Bun / Deno) at startup and
+//  selects the correct HTTP adapter automatically.  You can override the
+//  detection by passing `runtime: 'node' | 'bun' | 'deno'` explicitly.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { serve } from '@netrojs/vono/server'
-import { vono } from './app'
+import { vono }  from './app'
 
 await serve({
-  app:      vono,
-  port:     Number(process.env['PORT'] ?? 3000),
-  runtime:  'node',
-  // Points to your built output folder — serve-static serves /assets/* from here
+  app:       vono,
+  port:      Number(process.env['PORT'] ?? 3000),
   staticDir: './dist',
 })

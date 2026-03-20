@@ -1,5 +1,7 @@
 import { defineConfig } from 'tsup'
 
+// All peer-dependencies are external — they must be present in the user's
+// project and must NOT be bundled into the dist/ output.
 const external = [
   'vue',
   'vue-router',
@@ -13,27 +15,35 @@ const external = [
 ]
 
 export default defineConfig([
-  // types — emits types.d.ts; consumed by core/server/client via their own re-exports
+  // ── types.d.ts ─────────────────────────────────────────────────────────────
+  // Declaration-only bundle.  Consumed by all three runtime bundles for their
+  // re-exported types.  Built first (clean: true) to reset the dist/ folder.
   {
-    entry:   { types: 'types.ts' },
-    format:  ['esm'],
-    dts:     { only: true },   // declaration only — no runtime bundle needed
-    clean:   true,
-    outDir:  'dist',
-    target:  'es2022',
+    entry:  { types: 'types.ts' },
+    format: ['esm'],
+    dts:    { only: true },
+    clean:  true,
+    outDir: 'dist',
+    target: 'es2022',
     external,
   },
-  // core — shared builders + path matching; re-exports everything from types
+
+  // ── core.js ────────────────────────────────────────────────────────────────
+  // Route builders, path utilities, resolution logic.
+  // Tree-shaken by both the server and client bundles.
   {
-    entry:   { core: 'core.ts' },
-    format:  ['esm'],
-    dts:     true,
-    clean:   false,
-    outDir:  'dist',
-    target:  'es2022',
+    entry:  { core: 'core.ts' },
+    format: ['esm'],
+    dts:    true,
+    clean:  false,
+    outDir: 'dist',
+    target: 'es2022',
     external,
   },
-  // server — Hono app factory + streaming SSR renderer + Vite plugin (Node)
+
+  // ── server.js ──────────────────────────────────────────────────────────────
+  // Hono app factory, streaming SSR renderer, serve(), Vite plugin.
+  // Platform: node — allows Node.js built-in imports in the output.
   {
     entry:    { server: 'server.ts' },
     format:   ['esm'],
@@ -44,7 +54,10 @@ export default defineConfig([
     platform: 'node',
     external,
   },
-  // client — browser hydration + Vue Router SPA + reactive page data
+
+  // ── client.js ──────────────────────────────────────────────────────────────
+  // Browser hydration, SPA routing, composables, lifecycle re-exports.
+  // Platform: browser — tree-shakes Node.js-only code paths.
   {
     entry:    { client: 'client.ts' },
     format:   ['esm'],
