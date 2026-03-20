@@ -15,6 +15,6 @@
     "verbatimModuleSyntax":            true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.vue"],
+  "include": ["**/*.ts", "**/*.tsx", "**/*.vue", "global.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

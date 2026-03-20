@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  FNetro · types.ts
+//  Vono · types.ts
 //  All shared TypeScript types and runtime constants
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -110,16 +110,40 @@ export type ClientMiddleware = (url: string, next: () => Promise<void>) => Promi
 // ── Shared runtime constants ──────────────────────────────────────────────────
 
 /** Custom request header that identifies an SPA navigation (JSON payload). */
-export const SPA_HEADER = 'x-fnetro-spa'
+export const SPA_HEADER = 'x-vono-spa'
 /** window key for SSR-injected per-page loader data. */
-export const STATE_KEY  = '__FNETRO_STATE__'
+export const STATE_KEY  = '__VONO_STATE__'
 /** window key for SSR-injected URL params. */
-export const PARAMS_KEY = '__FNETRO_PARAMS__'
+export const PARAMS_KEY = '__VONO_PARAMS__'
 /** window key for SSR-injected SEO meta. */
-export const SEO_KEY    = '__FNETRO_SEO__'
+export const SEO_KEY    = '__VONO_SEO__'
 
 /**
  * Vue provide/inject key for the reactive page-data object.
  * Symbol.for() ensures the same reference across module instances (SSR safe).
  */
-export const DATA_KEY = Symbol.for('fnetro:data')
+export const DATA_KEY = Symbol.for('vono:data')
+
+// ── Type utilities ────────────────────────────────────────────────────────────
+
+/**
+ * Extract the loader data type from a `PageDef` returned by `definePage()`.
+ *
+ * This enables you to define the data type exactly once — inferred from the
+ * loader — and import it into page components for `usePageData<T>()`.
+ *
+ * @example
+ * // app/routes.ts
+ * export const homePage = definePage({
+ *   path: '/',
+ *   loader: async () => ({ title: 'Hello', count: 42 }),
+ *   component: () => import('./pages/home.vue'),
+ * })
+ * export type HomeData = InferPageData<typeof homePage>
+ * // HomeData = { title: string; count: number }
+ *
+ * // app/pages/home.vue
+ * import type { HomeData } from '../routes'
+ * const data = usePageData<HomeData>()
+ */
+export type InferPageData<T> = T extends PageDef<infer D> ? D : never

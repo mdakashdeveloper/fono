@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────────
-//  create-fnetro · Interactive project scaffolding CLI
-//  npm create @netrojs/fnetro@latest [project-name]
+//  create-vono · Interactive project scaffolding CLI
+//  npm create @netrojs/vono@latest [project-name]
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -13,7 +13,7 @@ import { bold, cyan, dim, green, red, yellow } from 'kolorist'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const FNETRO_VERSION = '0.3.0'
+const VONO_VERSION = '0.0.1'
 const FILES_DIR      = join(dirname(fileURLToPath(import.meta.url)), '..', 'files')
 
 type Runtime = 'node' | 'bun' | 'deno'
@@ -31,7 +31,7 @@ interface Answers {
 
 function banner() {
   console.log()
-  console.log(bold(cyan('  ◈  create-fnetro')))
+  console.log(bold(cyan('  ◈  create-vono')))
   console.log(dim('  Full-stack Hono + Vue 3 — SSR · SPA · code splitting · TypeScript'))
   console.log()
 }
@@ -59,6 +59,56 @@ function applyVars(content: string, vars: Record<string, string>): string {
   return content
 }
 
+// ── Runtime-specific server.ts content ───────────────────────────────────────
+//
+// The server.ts template uses `await serve(...)` at the top level.
+// This works because the SSR bundle is built with `target: 'node18'` by
+// vonoVitePlugin, which enables top-level await in the output.
+//
+// Each runtime variant sets the correct `runtime` flag and env accessor.
+
+const serverContent: Record<Runtime, string> = {
+  node: `\
+// server.ts — Node.js production entry
+// vonoVitePlugin sets target: 'node18' in the SSR build, enabling top-level await.
+import { serve } from '@netrojs/vono/server'
+import { vono } from './app'
+
+await serve({
+  app:       vono,
+  port:      Number(process.env['PORT'] ?? 3000),
+  runtime:   'node',
+  staticDir: './dist',
+})
+`,
+  bun: `\
+// server.ts — Bun production entry
+// vonoVitePlugin sets target: 'node18' in the SSR build, enabling top-level await.
+import { serve } from '@netrojs/vono/server'
+import { vono } from './app'
+
+await serve({
+  app:       vono,
+  port:      Number(process.env['PORT'] ?? 3000),
+  runtime:   'bun',
+  staticDir: './dist',
+})
+`,
+  deno: `\
+// server.ts — Deno production entry
+// vonoVitePlugin sets target: 'node18' in the SSR build, enabling top-level await.
+import { serve } from '@netrojs/vono/server'
+import { vono } from './app'
+
+await serve({
+  app:       vono,
+  port:      Number(Deno.env.get('PORT') ?? 3000),
+  runtime:   'deno',
+  staticDir: './dist',
+})
+`,
+}
+
 // ── Scaffold ──────────────────────────────────────────────────────────────────
 
 function scaffold(dir: string, a: Answers): void {
@@ -75,22 +125,19 @@ function scaffold(dir: string, a: Answers): void {
 
   const vars: Record<string, string> = {
     PROJECT_NAME:    a.projectName,
-    FNETRO_VERSION,
+    VONO_VERSION,
     DEV_CMD:         devCmds[a.runtime],
     BUILD_CMD:       buildCmds[a.runtime],
-  }
-
-  // Runtime-specific server.ts adjustments
-  const serverOverrides: Record<Runtime, string> = {
-    node: `import { serve } from '@netrojs/fnetro/server'\nimport { fnetro } from './app'\n\nawait serve({ app: fnetro, port: Number(process.env['PORT'] ?? 3000), runtime: 'node' })\n`,
-    bun:  `import { serve } from '@netrojs/fnetro/server'\nimport { fnetro } from './app'\n\nawait serve({ app: fnetro, port: Number(process.env['PORT'] ?? 3000), runtime: 'bun' })\n`,
-    deno: `import { serve } from '@netrojs/fnetro/server'\nimport { fnetro } from './app'\n\nawait serve({ app: fnetro, port: Number(Deno.env.get('PORT') ?? 3000), runtime: 'deno' })\n`,
   }
 
   mkdirSync(dir, { recursive: true })
 
   for (const srcPath of walk(FILES_DIR)) {
     const rel     = relative(FILES_DIR, srcPath)
+
+    // Skip leftover editor files (e.g. "home copy.vue")
+    if (/\scopy\b/.test(rel)) continue
+
     const renamed = rel
       .replace(/^_package\.json$/, 'package.json')
       .replace(/^_gitignore$/,     '.gitignore')
@@ -100,22 +147,38 @@ function scaffold(dir: string, a: Answers): void {
 
     let content = readFileSync(srcPath, 'utf-8')
 
-    // Override server.ts for runtime
-    if (renamed === 'server.ts') content = serverOverrides[a.runtime]
+    // ── Runtime-specific overrides ──────────────────────────────────────────
 
-    // Bun devDep
-    if (renamed === 'package.json' && a.runtime === 'bun') {
-      content = content.replace('"@hono/node-server":      "^1.19.11",\n', '')
-      const parsed = JSON.parse(content)
-      parsed.devDependencies['@types/bun'] = 'latest'
-      content = JSON.stringify(parsed, null, 2) + '\n'
+    // server.ts: replace with the runtime-specific version
+    if (renamed === 'server.ts') {
+      content = serverContent[a.runtime]
+    }
+
+    // package.json: swap @hono/node-server for @types/bun on Bun
+    if (renamed === 'package.json') {
+      const parsed: Record<string, any> = JSON.parse(applyVars(content, vars))
+
+      if (a.runtime === 'bun') {
+        delete parsed.devDependencies['@hono/node-server']
+        parsed.devDependencies['@types/bun'] = 'latest'
+      }
+      if (a.runtime === 'deno') {
+        delete parsed.devDependencies['@hono/node-server']
+      }
+
+      writeFileSync(destPath, JSON.stringify(parsed, null, 2) + '\n', 'utf-8')
+      continue
     }
 
     writeFileSync(destPath, applyVars(content, vars), 'utf-8')
   }
 
   // .env.example
-  writeFileSync(join(dir, '.env.example'), `PORT=3000\nNODE_ENV=development\n`, 'utf-8')
+  writeFileSync(
+    join(dir, '.env.example'),
+    `PORT=3000\nNODE_ENV=development\n`,
+    'utf-8',
+  )
 }
 
 // ── Install + git ─────────────────────────────────────────────────────────────
@@ -136,7 +199,7 @@ async function main() {
       name:    'projectName',
       type:    nameArg ? null : 'text',
       message: 'Project name:',
-      initial: 'my-fnetro-app',
+      initial: 'my-vono-app',
       validate: (v: string) => v.trim() ? true : 'Name is required',
     },
     {
@@ -162,12 +225,8 @@ async function main() {
       ],
       initial: 0,
     },
-    {
-      name: 'gitInit',     type: 'confirm', message: 'Init git repo?',     initial: true,
-    },
-    {
-      name: 'installDeps', type: 'confirm', message: 'Install dependencies?', initial: true,
-    },
+    { name: 'gitInit',     type: 'confirm', message: 'Init git repo?',        initial: true },
+    { name: 'installDeps', type: 'confirm', message: 'Install dependencies?', initial: true },
   ], {
     onCancel: () => { console.log(red('\nCancelled.\n')); process.exit(1) },
   }) as Answers
@@ -183,13 +242,13 @@ async function main() {
 
   console.log()
   scaffold(dir, a)
-  console.log(green(`  ✓ Scaffolded to ${a.projectName}/`))
+  console.log(green(`  ✓ Scaffolded ${bold(a.projectName)}/`))
 
   if (a.gitInit) {
     try {
-      execSync('git init', { cwd: dir, stdio: 'ignore' })
-      execSync('git add -A', { cwd: dir, stdio: 'ignore' })
-      execSync('git commit -m "chore: initial fnetro scaffold"', { cwd: dir, stdio: 'ignore' })
+      execSync('git init',                                                     { cwd: dir, stdio: 'ignore' })
+      execSync('git add -A',                                                   { cwd: dir, stdio: 'ignore' })
+      execSync('git commit -m "chore: initial vono scaffold"',               { cwd: dir, stdio: 'ignore' })
       console.log(green('  ✓ Git repo initialised'))
     } catch { /* git not available */ }
   }
@@ -200,13 +259,16 @@ async function main() {
   }
 
   const rel = relative(process.cwd(), dir)
+
   console.log()
   console.log(bold('  Next steps:'))
   if (rel !== '.') console.log(`    ${cyan(`cd ${rel}`)}`)
   if (!a.installDeps) console.log(`    ${cyan(INSTALL[a.pkgManager])}`)
   console.log(`    ${cyan(a.runtime === 'bun' ? 'bun run dev' : 'npm run dev')}`)
   console.log()
-  console.log(dim(`  Docs: https://github.com/netrosolutions/fnetro`))
+  console.log(dim('  Open http://localhost:5173 to see the demo app.'))
+  console.log(dim('  Dashboard demo: /dashboard  (sign in with any credentials)'))
+  console.log(dim('  Docs: https://github.com/netrosolutions/vono'))
   console.log()
 }
 

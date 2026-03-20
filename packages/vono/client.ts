@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  FNetro · client.ts
+//  Vono · client.ts
 //  Vue 3 SSR hydration · Vue Router SPA · reactive page data · SEO sync
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ function fetchSPA(href: string): Promise<SpaPayload> {
     _fetchCache.set(
       href,
       fetch(href, { headers: { [SPA_HEADER]: '1' } }).then(r => {
-        if (!r.ok) throw new Error(`[fnetro] ${r.status} ${r.statusText} — ${href}`)
+        if (!r.ok) throw new Error(`[vono] ${r.status} ${r.statusText} — ${href}`)
         return r.json() as Promise<SpaPayload>
       }),
     )
@@ -176,7 +176,7 @@ export function usePageData<T extends Record<string, unknown> = Record<string, u
   // DATA_KEY is typed as symbol; cast to InjectionKey for strong inference
   const data = inject(DATA_KEY as InjectionKey<T>)
   if (data === undefined) {
-    throw new Error('[fnetro] usePageData() must be called inside a component setup().')
+    throw new Error('[vono] usePageData() must be called inside a component setup().')
   }
   return data
 }
@@ -189,9 +189,9 @@ export interface BootOptions extends AppConfig {
 }
 
 export async function boot(options: BootOptions): Promise<void> {
-  const container = document.getElementById('fnetro-app')
+  const container = document.getElementById('vono-app')
   if (!container) {
-    console.error('[fnetro] #fnetro-app not found — aborting hydration.')
+    console.error('[vono] #vono-app not found — aborting hydration.')
     return
   }
 
@@ -221,7 +221,7 @@ export async function boot(options: BootOptions): Promise<void> {
 
     const routeComp: Component = layout
       ? defineComponent({
-          name:  'FNetroRoute',
+          name:  'VonoRoute',
           setup: () => () => h((layout as LayoutDef).component as Component, null, {
             default: () => h(PageComp),
           }),
@@ -239,14 +239,14 @@ export async function boot(options: BootOptions): Promise<void> {
   }
 
   // createSSRApp: tells Vue to hydrate existing DOM instead of re-rendering
-  const app = createSSRApp({ name: 'FNetroApp', render: () => h(RouterView) })
+  const app = createSSRApp({ name: 'VonoApp', render: () => h(RouterView) })
   app.provide(DATA_KEY as InjectionKey<typeof _pageData>, readonly(_pageData))
 
   const router = createRouter({ history: createWebHistory(), routes: vueRoutes })
 
   // Track whether this is the initial (server-hydrated) navigation.
   // We skip data fetching for the first navigation — the server already
-  // injected the data into window.__FNETRO_STATE__.
+  // injected the data into window.__VONO_STATE__.
   let isInitialNav = true
 
   router.beforeEach(async (to, _from, next) => {
@@ -266,7 +266,7 @@ export async function boot(options: BootOptions): Promise<void> {
       })
       next()
     } catch (err) {
-      console.error('[fnetro] Navigation error:', err)
+      console.error('[vono] Navigation error:', err)
       // Hard navigate as fallback — the server will handle the request
       location.href = to.fullPath
     }
@@ -297,7 +297,7 @@ export {
 export type {
   AppConfig, PageDef, GroupDef, LayoutDef, ApiRouteDef, Route,
   SEOMeta, HonoMiddleware, LoaderCtx, ResolvedRoute, CompiledPath,
-  ClientMiddleware, AsyncLoader,
+  ClientMiddleware, AsyncLoader, InferPageData,
 } from './core'
 
 // Vue Router composables re-exported for convenience

@@ -40,17 +40,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Typecheck — fnetro
-        run: npm run typecheck --workspace=packages/fnetro
+      - name: Typecheck — vono
+        run: npm run typecheck --workspace=packages/vono
 
-      - name: Build — fnetro
-        run: npm run build --workspace=packages/fnetro
+      - name: Build — vono
+        run: npm run build --workspace=packages/vono
 
-      - name: Typecheck — create-fnetro
-        run: npm run typecheck --workspace=packages/create-fnetro
+      - name: Typecheck — create-vono
+        run: npm run typecheck --workspace=packages/create-vono
 
-      - name: Build — create-fnetro
-        run: npm run build --workspace=packages/create-fnetro
+      - name: Build — create-vono
+        run: npm run build --workspace=packages/create-vono
 
   # ── Scaffold smoke test ──────────────────────────────────────────────────────
   # Runs only on Node 22 (LTS) after the build matrix passes.
@@ -80,7 +80,7 @@ jobs:
 
       - name: Scaffold — ${{ matrix.template }} template (node runtime)
         run: |
-          node packages/create-fnetro/dist/index.js test-app \
+          node packages/create-vono/dist/index.js test-app \
             --ci \
             --runtime node \
             --template ${{ matrix.template }} \
@@ -147,7 +147,7 @@ jobs:
           import { readFileSync } from 'node:fs'
           const p = JSON.parse(readFileSync('test-app/package.json','utf8'))
           const checks = {
-            'fnetro dep':        !!p.dependencies?.['@netrojs/fnetro'],
+            'vono dep':        !!p.dependencies?.['@netrojs/vono'],
             'solid-js dep':      !!p.dependencies?.['solid-js'],
             'hono dep':          !!p.dependencies?.hono,
             'type module':       p.type === 'module',
@@ -165,12 +165,12 @@ jobs:
 
       - name: Validate package imports
         run: |
-          grep -q "@netrojs/fnetro" test-app/app.ts \
-            && echo "  ok app.ts imports fnetro" \
-            || (echo "  FAIL app.ts missing fnetro import" && exit 1)
-          grep -q "fnetroVitePlugin" test-app/vite.config.ts \
-            && echo "  ok vite.config.ts uses fnetroVitePlugin" \
-            || (echo "  FAIL vite.config.ts missing fnetroVitePlugin" && exit 1)
+          grep -q "@netrojs/vono" test-app/app.ts \
+            && echo "  ok app.ts imports vono" \
+            || (echo "  FAIL app.ts missing vono import" && exit 1)
+          grep -q "vonoVitePlugin" test-app/vite.config.ts \
+            && echo "  ok vite.config.ts uses vonoVitePlugin" \
+            || (echo "  FAIL vite.config.ts missing vonoVitePlugin" && exit 1)
           grep -q "solid-js" test-app/app/layouts.tsx \
             && echo "  ok layouts.tsx imports from solid-js" \
             || (echo "  FAIL layouts.tsx missing solid-js import" && exit 1)

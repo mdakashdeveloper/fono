@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  FNetro · core.ts
+//  Vono · core.ts
 //  Route builders · path matching · route resolution · async-loader detection
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { Component } from 'vue'
 import type {
   PageDef, GroupDef, LayoutDef, ApiRouteDef, Route,
-  ResolvedRoute, CompiledPath, HonoMiddleware, AsyncLoader,
+  ResolvedRoute, CompiledPath, HonoMiddleware, AsyncLoader, LoaderCtx,
 } from './types'
 
 // ── Async-loader detection ────────────────────────────────────────────────────
@@ -35,6 +35,22 @@ export function isAsyncLoader(c: unknown): c is AsyncLoader {
 
 // ── Builder functions ─────────────────────────────────────────────────────────
 
+/**
+ * Define a page route with full type inference.
+ *
+ * TypeScript infers `TData` automatically from the `loader` return type, so
+ * you rarely need to supply the generic manually.  Export the page constant and
+ * use `InferPageData<typeof myPage>` in your component for a single source of
+ * truth.
+ *
+ * @example
+ * export const postPage = definePage({
+ *   path:      '/post/[slug]',
+ *   loader:    async (c) => fetchPost(c.req.param('slug')),
+ *   component: () => import('./pages/post.vue'),
+ * })
+ * export type PostData = InferPageData<typeof postPage>
+ */
 export function definePage<TData extends object = Record<string, never>>(
   def: Omit<PageDef<TData>, '__type'>,
 ): PageDef<TData> {
@@ -45,7 +61,7 @@ export function defineGroup(def: Omit<GroupDef, '__type'>): GroupDef {
   return { __type: 'group', ...def }
 }
 
-/** Wrap a Vue layout component (must render <slot />) as a FNetro layout. */
+/** Wrap a Vue layout component (must render <slot />) as a Vono layout. */
 export function defineLayout(component: Component): LayoutDef {
   return { __type: 'layout', component }
 }
@@ -57,7 +73,7 @@ export function defineApiRoute(
   return { __type: 'api', path, register }
 }
 
-// ── Path matching (FNetro [param] syntax → RegExp) ────────────────────────────
+// ── Path matching (Vono [param] syntax → RegExp) ────────────────────────────
 
 export function compilePath(path: string): CompiledPath {
   const keys: string[] = []
@@ -80,13 +96,13 @@ export function matchPath(
 }
 
 /**
- * Convert FNetro `[param]` syntax to Vue Router `:param` syntax.
+ * Convert Vono `[param]` syntax to Vue Router `:param` syntax.
  *
  * `/posts/[slug]`    → `/posts/:slug`
  * `/files/[...path]` → `/files/:path(.*)*`
  */
-export function toVueRouterPath(fnetroPath: string): string {
-  return fnetroPath
+export function toVueRouterPath(vonoPath: string): string {
+  return vonoPath
     .replace(/\[\.\.\.([^\]]+)\]/g, ':$1(.*)*')
     .replace(/\[([^\]]+)\]/g,       ':$1')
 }
@@ -131,5 +147,5 @@ export function resolveRoutes(
   return { pages, apis }
 }
 
-// Re-export all types so `import from '@netrojs/fnetro'` (root export) works
+// Re-export all types so `import from '@netrojs/vono'` (root export) works
 export * from './types'

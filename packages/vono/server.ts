@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  FNetro · server.ts
+//  Vono · server.ts
 //  Hono app factory · Vue 3 streaming SSR · SEO head · asset manifest
 //  Vite plugin (dual-bundle: server SSR + client SPA)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ async function resolveAssets(cfg: AssetConfig, defaultEntry: string): Promise<Re
 // ── HTML shell parts ──────────────────────────────────────────────────────────
 
 interface ShellParts {
-  head: string  // everything up to and including the opening <div id="fnetro-app">
+  head: string  // everything up to and including the opening <div id="vono-app">
   tail: string  // everything after the closing </div>
 }
 
@@ -152,7 +152,7 @@ function buildShellParts(
     styleLinks,
     '</head>',
     '<body>',
-    '<div id="fnetro-app">',
+    '<div id="vono-app">',
   ].filter(Boolean).join('\n')
 
   const tail = [
@@ -187,10 +187,10 @@ async function resolveComponent(comp: Component | ((...a: unknown[]) => unknown)
  * Builds a fresh Vue SSR app + router per request (required — no shared state
  * across requests) and streams HTML output.
  *
- * Performance approach:
- *   1. Run loader + build <head> HTML synchronously.
- *   2. Return a streaming Response so the browser receives and processes
- *      <head> (CSS links, critical scripts) while the body is still rendering.
+ * The memory history is initialised at the request URL *before* the router is
+ * created.  This ensures the router's internal startup navigation resolves
+ * against the correct route and never emits a spurious
+ * "[Vue Router warn]: No match found for location with path '/'" warning.
  */
 async function renderPage(
   route:     ResolvedRoute,
@@ -206,7 +206,7 @@ async function renderPage(
 
   const routeComp: Component = layout
     ? defineComponent({
-        name:  'FNetroRoute',
+        name:  'VonoRoute',
         setup: () => () => h(layout.component as Component, null, {
           default: () => h(PageComp),
         }),
@@ -217,13 +217,26 @@ async function renderPage(
   const app = createSSRApp({ render: () => h(RouterView) })
   app.provide(DATA_KEY, data)
 
+  // ── Vue Router warning fix ────────────────────────────────────────────────
+  // createMemoryHistory() initialises its location to '/'.  When the router
+  // is constructed it performs an internal navigation to that initial location.
+  // If the only registered route is e.g. '/about', no match is found and
+  // Vue Router emits a warning even though the subsequent router.push('/about')
+  // succeeds perfectly.
+  //
+  // Fix: call history.replace(url) BEFORE constructing the router.  The router
+  // then sees the correct initial location and its startup navigation succeeds
+  // without warnings.  No separate router.push() is required.
+  const memHistory = createMemoryHistory()
+  memHistory.replace(url)
+
   const router = createRouter({
-    history: createMemoryHistory(),
+    history: memHistory,
     routes:  [{ path: toVueRouterPath(route.fullPath), component: routeComp }],
   })
   app.use(router)
 
-  await router.push(url)
+  // router.isReady() resolves once the initial navigation (to `url`) completes.
   await router.isReady()
 
   // renderToWebStream streams body chunks as Uint8Array — lower TTFB vs
@@ -260,20 +273,20 @@ function buildResponseStream(
   return readable
 }
 
-// ── createFNetro ──────────────────────────────────────────────────────────────
+// ── createVono ──────────────────────────────────────────────────────────────
 
-export interface FNetroOptions extends AppConfig {
+export interface VonoOptions extends AppConfig {
   assets?: AssetConfig
 }
 
-export interface FNetroApp {
+export interface VonoApp {
   /** The Hono instance — attach extra routes, error handlers, middleware. */
   app:     Hono
   /** WinterCG-compatible fetch handler for edge runtimes. */
   handler: typeof Hono.prototype.fetch
 }
 
-export function createFNetro(config: FNetroOptions): FNetroApp {
+export function createVono(config: VonoOptions): VonoApp {
   const app = new Hono()
 
   // Global middleware (runs before every route)
@@ -363,7 +376,7 @@ export function createFNetro(config: FNetroOptions): FNetroApp {
       ? route.page.seo(data as any, params)
       : route.page.seo
     const seo   = mergeSEO(config.seo, pageSEO)
-    const title = seo.title ?? 'FNetro'
+    const title = seo.title ?? 'Vono'
 
     const { head, tail } = buildShellParts(
       title,
@@ -402,7 +415,7 @@ export function detectRuntime(): Runtime {
 }
 
 export interface ServeOptions {
-  app:        FNetroApp
+  app:        VonoApp
   port?:      number
   hostname?:  string
   runtime?:   Runtime
@@ -416,7 +429,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
   const hostname    = opts.hostname ?? '0.0.0.0'
   const staticDir   = opts.staticDir ?? './dist'
   const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname
-  const logReady    = () => console.log(`\n🔥  FNetro [${runtime}] → http://${displayHost}:${port}\n`)
+  const logReady    = () => console.log(`\n🔥  Vono [${runtime}] → http://${displayHost}:${port}\n`)
 
   switch (runtime) {
     case 'node': {
@@ -439,7 +452,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
       logReady()
       break
     default:
-      console.warn('[fnetro] serve() is a no-op on edge — export fnetro.handler instead.')
+      console.warn('[vono] serve() is a no-op on edge — export vono.handler instead.')
   }
 }
 
@@ -448,7 +461,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
 // Design:
 //   • The user's vite.config.ts already includes vue() from @vitejs/plugin-vue.
 //     That plugin handles .vue transforms in both dev mode and the server build.
-//   • fnetroVitePlugin() only handles build orchestration:
+//   • vonoVitePlugin() only handles build orchestration:
 //       - `vite build` → server SSR bundle  (dist/server/server.js)
 //       - `closeBundle` → client SPA bundle (dist/assets/… + .vite/manifest.json)
 //
@@ -457,7 +470,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
 const NODE_BUILTINS =
   /^node:|^(assert|buffer|child_process|cluster|crypto|dgram|dns|domain|events|fs|http|https|module|net|os|path|perf_hooks|process|punycode|querystring|readline|repl|stream|string_decoder|sys|timers|tls|trace_events|tty|url|util|v8|vm|worker_threads|zlib)$/
 
-export interface FNetroPluginOptions {
+export interface VonoPluginOptions {
   /** Server entry file.             @default 'server.ts' */
   serverEntry?:    string
   /** Client entry file.             @default 'client.ts' */
@@ -472,7 +485,7 @@ export interface FNetroPluginOptions {
   vueOptions?:     Record<string, unknown>
 }
 
-export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin {
+export function vonoVitePlugin(opts: VonoPluginOptions = {}): Plugin {
   const {
     serverEntry    = 'server.ts',
     clientEntry    = 'client.ts',
@@ -483,16 +496,24 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin {
   } = opts
 
   return {
-    name:    'fnetro:build',
+    name:    'vono:build',
     apply:   'build',
     enforce: 'pre',
 
-    // Server (SSR) bundle configuration
+    // Server (SSR) bundle configuration.
+    //
+    // target: 'node18' is essential — it tells esbuild to emit ES2022+ syntax
+    // which includes top-level await.  Without it, esbuild defaults to a
+    // browser-compatible target ("chrome87", "es2020", …) that does NOT support
+    // top-level await, causing the build to fail with:
+    //   "Top-level await is not available in the configured target environment"
     config(): Omit<UserConfig, 'plugins'> {
       return {
         build: {
           ssr:    serverEntry,
           outDir: serverOutDir,
+          // ↓ CRITICAL — enables top-level await in the server bundle
+          target: 'node18',
           rollupOptions: {
             input:  serverEntry,
             output: { format: 'es', entryFileNames: 'server.js' },
@@ -512,7 +533,7 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin {
 
     // After the server bundle is written, trigger the client SPA build
     async closeBundle() {
-      console.log('\n⚡  FNetro: building client bundle…\n')
+      console.log('\n⚡  Vono: building client bundle…\n')
 
       let vuePlugin: Plugin | Plugin[]
       try {
@@ -521,7 +542,7 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin {
         vuePlugin = factory(vueOptions)
       } catch {
         throw new Error(
-          '[fnetro] @vitejs/plugin-vue is required for the client build.\n' +
+          '[vono] @vitejs/plugin-vue is required for the client build.\n' +
           '  Install: npm i -D @vitejs/plugin-vue',
         )
       }
@@ -549,7 +570,7 @@ export function fnetroVitePlugin(opts: FNetroPluginOptions = {}): Plugin {
         },
       })
 
-      console.log('✅  FNetro: both bundles ready\n')
+      console.log('✅  Vono: both bundles ready\n')
     },
   }
 }
@@ -565,5 +586,5 @@ export {
 export type {
   AppConfig, PageDef, GroupDef, LayoutDef, ApiRouteDef, Route,
   SEOMeta, HonoMiddleware, LoaderCtx, ResolvedRoute, CompiledPath,
-  ClientMiddleware, AsyncLoader,
+  ClientMiddleware, AsyncLoader, InferPageData,
 } from './core'

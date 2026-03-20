@@ -1,22 +1,22 @@
 {
-  "name": "@netrojs/create-fnetro",
-  "version": "0.3.0",
-  "description": "Create a new FNetro app \u2014 Vue 3 streaming SSR + SPA, Hono, TypeScript",
+  "name": "@netrojs/create-vono",
+  "version": "0.0.1",
+  "description": "Create a new Vono app \u2014 Vue 3 streaming SSR + SPA, Hono, TypeScript",
   "type": "module",
   "license": "MIT",
   "author": "Netro Solutions<info@netrosolutions.com>",
-  "homepage": "https://github.com/netrosolutions/fnetro",
+  "homepage": "https://github.com/netrosolutions/vono",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/netrosolutions/fnetro.git",
-    "directory": "packages/create-fnetro"
+    "url": "git+https://github.com/netrosolutions/vono.git",
+    "directory": "packages/create-vono"
   },
   "bugs": {
-    "url": "https://github.com/netrosolutions/fnetro/issues"
+    "url": "https://github.com/netrosolutions/vono/issues"
   },
   "keywords": [
-    "create-fnetro",
-    "fnetro",
+    "create-vono",
+    "vono",
     "hono",
     "vue",
     "vue3",
@@ -25,7 +25,7 @@
     "spa"
   ],
   "bin": {
-    "create-fnetro": "./dist/index.js"
+    "create-vono": "./dist/index.js"
   },
   "files": [
     "dist",

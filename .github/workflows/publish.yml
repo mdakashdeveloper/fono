@@ -55,16 +55,16 @@ jobs:
       - name: Verify package.json versions match tag
         if: github.event_name == 'push'
         run: |
-          FNETRO_VER=$(node -p "require('./packages/fnetro/package.json').version")
-          CREATE_VER=$(node -p "require('./packages/create-fnetro/package.json').version")
+          VONO_VER=$(node -p "require('./packages/vono/package.json').version")
+          CREATE_VER=$(node -p "require('./packages/create-vono/package.json').version")
           TAG_VER="${{ steps.version.outputs.version }}"
 
-          if [ "$FNETRO_VER" != "$TAG_VER" ]; then
-            echo "❌ fnetro version ($FNETRO_VER) != tag ($TAG_VER)"
+          if [ "$VONO_VER" != "$TAG_VER" ]; then
+            echo "❌ vono version ($VONO_VER) != tag ($TAG_VER)"
             exit 1
           fi
           if [ "$CREATE_VER" != "$TAG_VER" ]; then
-            echo "❌ create-fnetro version ($CREATE_VER) != tag ($TAG_VER)"
+            echo "❌ create-vono version ($CREATE_VER) != tag ($TAG_VER)"
             exit 1
           fi
           echo "✅ Package versions match tag: $TAG_VER"
@@ -72,34 +72,34 @@ jobs:
       - name: Install all deps
         run: |
           npm ci
-          npm ci --prefix packages/fnetro
-          npm ci --prefix packages/create-fnetro
+          npm ci --prefix packages/vono
+          npm ci --prefix packages/create-vono
 
-      - name: Typecheck fnetro
+      - name: Typecheck vono
         run: npm run typecheck
-        working-directory: packages/fnetro
+        working-directory: packages/vono
 
-      - name: Typecheck create-fnetro
+      - name: Typecheck create-vono
         run: npm run typecheck
-        working-directory: packages/create-fnetro
+        working-directory: packages/create-vono
 
-      - name: Build fnetro
+      - name: Build vono
         run: npm run build
-        working-directory: packages/fnetro
+        working-directory: packages/vono
 
-      - name: Build create-fnetro
+      - name: Build create-vono
         run: npm run build
-        working-directory: packages/create-fnetro
+        working-directory: packages/create-vono
 
       - name: Verify dist outputs
         run: |
-          test -f packages/fnetro/dist/core.js     || exit 1
-          test -f packages/fnetro/dist/server.js   || exit 1
-          test -f packages/fnetro/dist/client.js   || exit 1
-          test -f packages/fnetro/dist/core.d.ts   || exit 1
-          test -f packages/fnetro/dist/server.d.ts || exit 1
-          test -f packages/fnetro/dist/client.d.ts || exit 1
-          test -f packages/create-fnetro/dist/index.js || exit 1
+          test -f packages/vono/dist/core.js     || exit 1
+          test -f packages/vono/dist/server.js   || exit 1
+          test -f packages/vono/dist/client.js   || exit 1
+          test -f packages/vono/dist/core.d.ts   || exit 1
+          test -f packages/vono/dist/server.d.ts || exit 1
+          test -f packages/vono/dist/client.d.ts || exit 1
+          test -f packages/create-vono/dist/index.js || exit 1
           echo "✅ All dist outputs present"
 
       - name: Upload dist artifacts
@@ -107,13 +107,13 @@ jobs:
         with:
           name: dist-${{ steps.version.outputs.version }}
           path: |
-            packages/fnetro/dist/
-            packages/create-fnetro/dist/
+            packages/vono/dist/
+            packages/create-vono/dist/
           retention-days: 7
 
   # ────────────────────────────────────────────────────────────────────────────
-  publish-fnetro:
-    name: Publish fnetro
+  publish-vono:
+    name: Publish vono
     runs-on: ubuntu-latest
     needs: validate
 
@@ -133,10 +133,10 @@ jobs:
           name: dist-${{ needs.validate.outputs.version }}
 
       - name: Restore package manifests
-        run: npm ci --prefix packages/fnetro
+        run: npm ci --prefix packages/vono
 
-      - name: Publish fnetro
-        working-directory: packages/fnetro
+      - name: Publish vono
+        working-directory: packages/vono
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             npm publish --dry-run --access public
@@ -147,10 +147,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ────────────────────────────────────────────────────────────────────────────
-  publish-create-fnetro:
-    name: Publish create-fnetro
+  publish-create-vono:
+    name: Publish create-vono
     runs-on: ubuntu-latest
-    needs: [validate, publish-fnetro]
+    needs: [validate, publish-vono]
 
     steps:
       - name: Checkout
@@ -168,10 +168,10 @@ jobs:
           name: dist-${{ needs.validate.outputs.version }}
 
       - name: Restore package manifests
-        run: npm ci --prefix packages/create-fnetro
+        run: npm ci --prefix packages/create-vono
 
-      - name: Publish create-fnetro
-        working-directory: packages/create-fnetro
+      - name: Publish create-vono
+        working-directory: packages/create-vono
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             npm publish --dry-run --access public
@@ -185,7 +185,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [validate, publish-fnetro, publish-create-fnetro]
+    needs: [validate, publish-vono, publish-create-vono]
     if: github.event_name == 'push' && inputs.dry_run != 'true'
 
     steps:
@@ -199,15 +199,15 @@ jobs:
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
           {
-            echo "## fnetro v${VERSION}"
+            echo "## vono v${VERSION}"
             echo ""
             echo "### Packages published"
-            echo "- [\`fnetro@${VERSION}\`](https://www.npmjs.com/package/fnetro/v/${VERSION})"
-            echo "- [\`create-fnetro@${VERSION}\`](https://www.npmjs.com/package/create-fnetro/v/${VERSION})"
+            echo "- [\`vono@${VERSION}\`](https://www.npmjs.com/package/vono/v/${VERSION})"
+            echo "- [\`create-vono@${VERSION}\`](https://www.npmjs.com/package/create-vono/v/${VERSION})"
             echo ""
             echo "### Quick start"
             echo "\`\`\`bash"
-            echo "npm create fnetro@latest my-app"
+            echo "npm create vono@latest my-app"
             echo "\`\`\`"
           } > release-notes.md
           cat release-notes.md
