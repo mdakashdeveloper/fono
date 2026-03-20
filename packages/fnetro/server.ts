@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import { createComponent } from 'solid-js'
 import { renderToStringAsync, generateHydrationScript } from 'solid-js/web'
-import { ServerRouter } from '@solidjs/router'
+import { Router } from '@solidjs/router'
 import {
   resolveRoutes, compilePath, matchPath,
   SPA_HEADER, STATE_KEY, PARAMS_KEY, SEO_KEY,
@@ -244,14 +244,14 @@ async function renderPage(
           url,
           params,
           get children() { return pageEl },
-        }) as any
-      : pageEl as any
+        })
+      : pageEl
 
-    // Wrap in ServerRouter so hydration keys match the client-side <Router>
-    return createComponent(ServerRouter as AnyComponent, {
+    // Wrap in Router so hydration keys match the client-side <Router>
+    return createComponent(Router as AnyComponent, {
       url,
       get children() { return content },
-    }) as any
+    })
   })
 }
 
@@ -264,7 +264,7 @@ async function renderFullPage(
   assets:  ResolvedAssets,
 ): Promise<string> {
   const pageSEO = typeof route.page.seo === 'function'
-    ? route.page.seo(data as any, params)
+    ? route.page.seo(data, params)
     : route.page.seo
   const seo   = mergeSEO(config.seo, pageSEO)
   const title = seo.title ?? 'FNetro'

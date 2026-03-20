@@ -18,7 +18,7 @@ const CFG = {
   FNETRO_PKG:         '@netrojs/fnetro',
   FNETRO_VERSION:     '^0.2.21',
   SOLID_VERSION:      '^1.9.11',
-  SOLID_ROUTER_VERSION: '^0.15.3',
+  SOLID_ROUTER_VERSION: '^0.16.1',
   HONO_VERSION:       '^4.12.8',
   VITE_VERSION:       '^8.0.1',
   VITE_SOLID_VERSION: '^2.11.11',
