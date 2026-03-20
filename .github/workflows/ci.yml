@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  push:
+    branches: [main, next]
+  pull_request:
+    branches: [main, next]
+
+# Opt into Node.js 24 for all action runners now, before it becomes mandatory
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ── Typecheck & Build ────────────────────────────────────────────────────────
+  ci:
+    name: Typecheck & Build (${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Let all Node versions run — don't cancel everything if one fails
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x, 22.x, 24.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          # Only cache if a lockfile exists — avoids cache-miss errors on fresh clones
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
+
+      # Use `npm install` (not `npm ci`) so the workflow works even when
+      # package-lock.json has not been committed yet (e.g. first push after
+      # adding the root package.json). Once you commit the lockfile, both
+      # commands work — but `npm install` is safely idempotent either way.
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck — fnetro
+        run: npm run typecheck --workspace=packages/fnetro
+
+      - name: Build — fnetro
+        run: npm run build --workspace=packages/fnetro
+
+      - name: Typecheck — create-fnetro
+        run: npm run typecheck --workspace=packages/create-fnetro
+
+      - name: Build — create-fnetro
+        run: npm run build --workspace=packages/create-fnetro
+
+  # ── Scaffold smoke test ──────────────────────────────────────────────────────
+  # Runs only on Node 22 (LTS) after the build matrix passes.
+  # Tests both templates and validates the generated file contents.
+  scaffold-test:
+    name: Scaffold (${{ matrix.template }})
+    runs-on: ubuntu-latest
+    needs: ci
+
+    strategy:
+      fail-fast: false
+      matrix:
+        template: [minimal, full]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
+
+      - name: Install & build
+        run: npm install && npm run build
+
+      - name: Scaffold — ${{ matrix.template }} template (node runtime)
+        run: |
+          node packages/create-fnetro/dist/index.js test-app \
+            --ci \
+            --runtime node \
+            --template ${{ matrix.template }} \
+            --pkg-manager npm \
+            --no-install \
+            --no-git
+
+      # ── File existence checks ──────────────────────────────────────────────
+      - name: Verify common files
+        run: |
+          files=(
+            app.ts server.ts client.ts
+            tsconfig.json vite.config.ts package.json
+            .gitignore .env.example README.md
+            app/style.css
+            app/layouts.tsx app/routes/home.tsx
+            app/routes/about.tsx app/routes/api.ts
+          )
+          for f in "${files[@]}"; do
+            if [ -f "test-app/$f" ]; then echo "  ok $f"
+            else echo "  MISSING: $f" && exit 1; fi
+          done
+
+      - name: Verify full template extras
+        if: matrix.template == 'full'
+        run: |
+          files=(
+            app/store.ts
+            app/routes/counter.tsx
+            app/routes/posts/index.tsx
+            "app/routes/posts/[slug].tsx"
+          )
+          for f in "${files[@]}"; do
+            if [ -f "test-app/$f" ]; then echo "  ok $f"
+            else echo "  MISSING: $f" && exit 1; fi
+          done
+
+      # ── Content validation ─────────────────────────────────────────────────
+      - name: Validate tsconfig.json
+        run: |
+          node --input-type=module << 'EOF'
+          import { readFileSync } from 'node:fs'
+          const co = JSON.parse(readFileSync('test-app/tsconfig.json','utf8')).compilerOptions
+          const checks = {
+            'jsxImportSource === solid-js':  co.jsxImportSource === 'solid-js',
+            'jsx === preserve':              co.jsx === 'preserve',
+            'strict':                        co.strict === true,
+            'allowImportingTsExtensions':    co.allowImportingTsExtensions === true,
+            'verbatimModuleSyntax':          co.verbatimModuleSyntax === true,
+            'moduleResolution bundler':      co.moduleResolution === 'bundler',
+            'noEmit':                        co.noEmit === true,
+          }
+          let ok = true
+          for (const [k,v] of Object.entries(checks)) {
+            console.log(v ? `  ok ${k}` : `  FAIL ${k}`)
+            if (!v) ok = false
+          }
+          if (!ok) process.exit(1)
+          EOF
+
+      - name: Validate package.json
+        run: |
+          node --input-type=module << 'EOF'
+          import { readFileSync } from 'node:fs'
+          const p = JSON.parse(readFileSync('test-app/package.json','utf8'))
+          const checks = {
+            'fnetro dep':        !!p.dependencies?.['@netrojs/fnetro'],
+            'solid-js dep':      !!p.dependencies?.['solid-js'],
+            'hono dep':          !!p.dependencies?.hono,
+            'type module':       p.type === 'module',
+            'build script':      !!p.scripts?.build,
+            'typecheck script':  !!p.scripts?.typecheck,
+            'start or dev':      !!(p.scripts?.start || p.scripts?.dev),
+          }
+          let ok = true
+          for (const [k,v] of Object.entries(checks)) {
+            console.log(v ? `  ok ${k}` : `  FAIL ${k}`)
+            if (!v) ok = false
+          }
+          if (!ok) process.exit(1)
+          EOF
+
+      - name: Validate package imports
+        run: |
+          grep -q "@netrojs/fnetro" test-app/app.ts \
+            && echo "  ok app.ts imports fnetro" \
+            || (echo "  FAIL app.ts missing fnetro import" && exit 1)
+          grep -q "fnetroVitePlugin" test-app/vite.config.ts \
+            && echo "  ok vite.config.ts uses fnetroVitePlugin" \
+            || (echo "  FAIL vite.config.ts missing fnetroVitePlugin" && exit 1)
+          grep -q "solid-js" test-app/app/layouts.tsx \
+            && echo "  ok layouts.tsx imports from solid-js" \
+            || (echo "  FAIL layouts.tsx missing solid-js import" && exit 1)
+          grep -q "style.css" test-app/client.ts \
+            && echo "  ok client.ts imports CSS" \
+            || (echo "  FAIL client.ts missing CSS import" && exit 1)

@@ -1,0 +1,236 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      # Trigger on version tags: v0.2.2, v1.0.0-beta.1, etc.
+      - 'v*.*.*'
+  # Allow manual publish from Actions tab
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual publish)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # to create GitHub releases
+  id-token: write   # for npm provenance
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  validate:
+    name: Validate before publish
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag:     ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME:-manual}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: $VERSION (tag: $TAG)"
+
+      - name: Verify package.json versions match tag
+        if: github.event_name == 'push'
+        run: |
+          FNETRO_VER=$(node -p "require('./packages/fnetro/package.json').version")
+          CREATE_VER=$(node -p "require('./packages/create-fnetro/package.json').version")
+          TAG_VER="${{ steps.version.outputs.version }}"
+
+          if [ "$FNETRO_VER" != "$TAG_VER" ]; then
+            echo "❌ fnetro version ($FNETRO_VER) != tag ($TAG_VER)"
+            exit 1
+          fi
+          if [ "$CREATE_VER" != "$TAG_VER" ]; then
+            echo "❌ create-fnetro version ($CREATE_VER) != tag ($TAG_VER)"
+            exit 1
+          fi
+          echo "✅ Package versions match tag: $TAG_VER"
+
+      - name: Install all deps
+        run: |
+          npm ci
+          npm ci --prefix packages/fnetro
+          npm ci --prefix packages/create-fnetro
+
+      - name: Typecheck fnetro
+        run: npm run typecheck
+        working-directory: packages/fnetro
+
+      - name: Typecheck create-fnetro
+        run: npm run typecheck
+        working-directory: packages/create-fnetro
+
+      - name: Build fnetro
+        run: npm run build
+        working-directory: packages/fnetro
+
+      - name: Build create-fnetro
+        run: npm run build
+        working-directory: packages/create-fnetro
+
+      - name: Verify dist outputs
+        run: |
+          test -f packages/fnetro/dist/core.js     || exit 1
+          test -f packages/fnetro/dist/server.js   || exit 1
+          test -f packages/fnetro/dist/client.js   || exit 1
+          test -f packages/fnetro/dist/core.d.ts   || exit 1
+          test -f packages/fnetro/dist/server.d.ts || exit 1
+          test -f packages/fnetro/dist/client.d.ts || exit 1
+          test -f packages/create-fnetro/dist/index.js || exit 1
+          echo "✅ All dist outputs present"
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ steps.version.outputs.version }}
+          path: |
+            packages/fnetro/dist/
+            packages/create-fnetro/dist/
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────────────────────
+  publish-fnetro:
+    name: Publish fnetro
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ needs.validate.outputs.version }}
+
+      - name: Restore package manifests
+        run: npm ci --prefix packages/fnetro
+
+      - name: Publish fnetro
+        working-directory: packages/fnetro
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npm publish --dry-run --access public
+          else
+            npm publish --access public --provenance
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ────────────────────────────────────────────────────────────────────────────
+  publish-create-fnetro:
+    name: Publish create-fnetro
+    runs-on: ubuntu-latest
+    needs: [validate, publish-fnetro]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ needs.validate.outputs.version }}
+
+      - name: Restore package manifests
+        run: npm ci --prefix packages/create-fnetro
+
+      - name: Publish create-fnetro
+        working-directory: packages/create-fnetro
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npm publish --dry-run --access public
+          else
+            npm publish --access public --provenance
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ────────────────────────────────────────────────────────────────────────────
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, publish-fnetro, publish-create-fnetro]
+    if: github.event_name == 'push' && inputs.dry_run != 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog excerpt
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          {
+            echo "## fnetro v${VERSION}"
+            echo ""
+            echo "### Packages published"
+            echo "- [\`fnetro@${VERSION}\`](https://www.npmjs.com/package/fnetro/v/${VERSION})"
+            echo "- [\`create-fnetro@${VERSION}\`](https://www.npmjs.com/package/create-fnetro/v/${VERSION})"
+            echo ""
+            echo "### Quick start"
+            echo "\`\`\`bash"
+            echo "npm create fnetro@latest my-app"
+            echo "\`\`\`"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const notes = fs.readFileSync('release-notes.md', 'utf8')
+            const tag = '${{ needs.validate.outputs.tag }}'
+            const version = '${{ needs.validate.outputs.version }}'
+            const isPreRelease = version.includes('-')
+
+            await github.rest.repos.createRelease({
+              owner:            context.repo.owner,
+              repo:             context.repo.repo,
+              tag_name:         tag,
+              name:             `v${version}`,
+              body:             notes,
+              draft:            false,
+              prerelease:       isPreRelease,
+              make_latest:      isPreRelease ? 'false' : 'true',
+            })
+
+            core.info(`✅ GitHub Release v${version} created`)

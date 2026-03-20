@@ -1,0 +1,24 @@
+# Nuxt dev/build outputs
+.output
+.data
+.cache
+dist
+
+# Node dependencies
+node_modules
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+GITHUB_SETUP.md
+test-app
+
+# Local env files
+.env
+.env.*
+!.env.example
